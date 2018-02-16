@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 controls_file="controls_echodevice.txt"
+changed_file="CHANGED"
 
 rm ${controls_file}
 find -type f \( -path './FHEM/*' -o -path './www/*' \) -print0 | while IFS= read -r -d '' f;
@@ -9,3 +10,7 @@ do
     out="UPD "$(stat -c %y  $f | cut -d. -f1 | awk '{printf "%s_%s",$1,$2}')" "$(stat -c %s $f)" ${f}"
     echo ${out//.\//} >> ${controls_file}
 done
+
+rm ${changed_file}
+echo "Last changed" >> ${changed_file}
+git log HEAD --pretty="%h %ad %s" --date=format:"%m.%d.%Y %H:%M" FHEM/ www/ >> ${changed_file}
