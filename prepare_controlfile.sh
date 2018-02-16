@@ -12,5 +12,5 @@ do
 done
 
 rm ${changed_file}
-echo "Last changed" >> ${changed_file}
+echo "*** And in this weeks episode at $(basename `git rev-parse --show-toplevel`):" >> ${changed_file}
 git log HEAD --pretty="%h %ad %s" --date=format:"%m.%d.%Y %H:%M" FHEM/ www/ >> ${changed_file}
