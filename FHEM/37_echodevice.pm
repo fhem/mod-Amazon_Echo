@@ -1,7 +1,14 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
-# 2018-02-11, v0.0.22
+# 2018-02-22, v0.0.24
+#
+# v0.0.24
+# - BUGFIX:  Timer Readings
+#
+# v0.0.23
+# - BUGFIX:  Nested quantifiers in regex
+# - CHANGE:  Reading version
 #
 # v0.0.22
 # - FEATURE: Attribut browser_useragent https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Attribute
@@ -139,6 +146,8 @@ use utf8;
 use Date::Parse;
 use Time::Piece;
 
+my $ModulVersion = "v0.0.24";
+
 ##############################################################################
 
 # dnd schedule: https://layla.amazon.de/api/dnd/schedule?deviceType=AB72C64C86AW2&deviceSerialNumber=ECHOSERIALNUMBER&_=1506940081763
@@ -232,13 +241,6 @@ sub echodevice_Define($$$) {
 		my $account = $modules{$hash->{TYPE}}{defptr}{"account"};
 		$hash->{IODev} = $account;
 		$attr{$name}{IODev} = $account->{NAME} if( !defined($attr{$name}{IODev}) && $account);
-
-		# ECHO am Account registrierern
-		$hash->{IODev}->{helper}{"ECHODEVICES"} = () if( !defined($hash->{IODev}->{helper}{"ECHODEVICES"}));
-		$hash->{IODev}->{helper}{"ECHODEVICES"}{$a[3]} = $hash ;
-		$hash->{IODev}->{helper}{"DEVICETYPE"} = $hash->{helper}{"DEVICETYPE"} ;
-		$hash->{IODev}->{helper}{"SERIAL"}     = $hash->{helper}{"SERIAL"};
-		$hash->{IODev}->{helper}{"VERSION"}    = $hash->{helper}{"VERSION"};
 		
 		if ($hash->{model} ne "THIRD_PARTY_AVS_MEDIA_DISPLAY") {
 			InternalTimer(gettimeofday() + 2, "echodevice_GetSettings", $hash, 0);
@@ -1221,7 +1223,7 @@ sub echodevice_Parse($$$) {
 	my $name = $hash->{NAME};
 	my $msgtype = $param->{type};
   
-	Log3 $name, 5, "[$name] ".Dumper(echodevice_anonymize($hash, $data));
+	Log3 $name, 5, "[$name] [$msgtype]".Dumper(echodevice_anonymize($hash, $data));
 
 	$hash->{helper}{RUNNING_REQUEST} = 0;
 	
@@ -1306,7 +1308,7 @@ sub echodevice_Parse($$$) {
 			$cookie =~ s/Version=1; //g;
 			$cookie =~ /(.*) (expires|Version|Domain)/;
 			$cookie = $1;
-			next if($cookiestring =~ /$cookie/);
+			next if($cookiestring =~ /\Q$cookie\E/);
 			$cookiestring3 .= $cookie." ";
 		} 
 
@@ -1327,7 +1329,7 @@ sub echodevice_Parse($$$) {
 			$cookie =~ s/Version=1; //g;
 			$cookie =~ /(.*) (expires|Version)/;
 			$cookie = $1;
-			next if($cookiestring =~ /$cookie/);
+			next if($cookiestring =~ /\Q$cookie\E/);
 			$cookiestring4 .= $cookie." ";
 		} 
 		$cookiestring .= $cookiestring4;
@@ -1488,7 +1490,6 @@ sub echodevice_Parse($$$) {
 		echodevice_SendCommand($hash,"listitems_shopping","SHOPPING_ITEM");
 		return undef;
 	}	
-
 	
 	my $json = eval { JSON->new->utf8(0)->decode($data) };
 	if($@) {
@@ -1555,23 +1556,23 @@ sub echodevice_Parse($$$) {
 		}
 	} 
   
-  elsif($msgtype eq "cards") {
-    my $timestamp = int(time - ReadingsAge($name,'voice',time));
-    return undef if(!defined($json->{cards}));
-    return undef if(ref($json->{cards}) ne "ARRAY");
-    foreach my $card (reverse(@{$json->{cards}})) {
-      #next if($card->{cardType} ne "TextCard");
-      #next if($card->{sourceDevice}{serialNumber} ne $hash->{helper}{SERIAL});
-      next if($timestamp >= int($card->{creationTimestamp}/1000));
-      next if(!defined($card->{playbackAudioAction}{mainText}));
-      readingsBeginUpdate($hash);
-      $hash->{".updateTimestamp"} = FmtDateTime(int($card->{creationTimestamp}/1000));
-      readingsBulkUpdateIfChanged( $hash, "voice", $card->{playbackAudioAction}{mainText}, 1 );
-      $hash->{CHANGETIME}[0] = FmtDateTime(int($card->{creationTimestamp}/1000));
-      readingsEndUpdate($hash,1);
-    }
-    return undef;
-  } 
+	elsif($msgtype eq "cards") {
+		my $timestamp = int(time - ReadingsAge($name,'voice',time));
+		return undef if(!defined($json->{cards}));
+		return undef if(ref($json->{cards}) ne "ARRAY");
+		foreach my $card (reverse(@{$json->{cards}})) {
+			#next if($card->{cardType} ne "TextCard");
+			#next if($card->{sourceDevice}{serialNumber} ne $hash->{helper}{SERIAL});
+			next if($timestamp >= int($card->{creationTimestamp}/1000));
+			next if(!defined($card->{playbackAudioAction}{mainText}));
+			readingsBeginUpdate($hash);
+			$hash->{".updateTimestamp"} = FmtDateTime(int($card->{creationTimestamp}/1000));
+			readingsBulkUpdateIfChanged( $hash, "voice", $card->{playbackAudioAction}{mainText}, 1 );
+			$hash->{CHANGETIME}[0] = FmtDateTime(int($card->{creationTimestamp}/1000));
+			readingsEndUpdate($hash,1);
+		}
+		return undef;
+	} 
   
 	elsif($msgtype eq "media") {
 
@@ -1714,7 +1715,7 @@ sub echodevice_Parse($$$) {
 		foreach my $device (@{$json->{notifications}}) {
 			
 			next if ($device->{status} eq "OFF" && (lc($device->{type}) ne "reminder" || lc($device->{type}) ne "timer"));
-			
+
 			my $ncstring ;
 				
 			if(lc($device->{type}) eq "reminder") {
@@ -1804,8 +1805,6 @@ sub echodevice_Parse($$$) {
 				elsif ($ReadingAge > $nextupdate) {
 					readingsDelete($echohash, "timer_" . sprintf("%02d",$i) . "_id") ;
 					readingsDelete($echohash, "timer_" . sprintf("%02d",$i) . "_remainingtime") ;
-					#print (fhem( "deletereading $DeviceName timer_" . sprintf("%02d",$i) . "_id" )) ;
-					#print (fhem( "deletereading $DeviceName timer_" . sprintf("%02d",$i) . "_remainingtime" )) ;				
 				}
 				else {$TimerAktiv=1;}
 			}
@@ -1836,10 +1835,6 @@ sub echodevice_Parse($$$) {
 					readingsDelete($echohash, "reminder_" . sprintf("%02d",$i) . "_alarmticks") ;
 					readingsDelete($echohash, "reminder_" . sprintf("%02d",$i) . "_alarmtime") ;
 					readingsDelete($echohash, "reminder_" . sprintf("%02d",$i) . "_recurring") ;
-					#print (fhem( "deletereading $DeviceName reminder_" . sprintf("%02d",$i) . "_id" )) ;
-					#print (fhem( "deletereading $DeviceName reminder_" . sprintf("%02d",$i) . "_alarmticks" )) ;				
-					#print (fhem( "deletereading $DeviceName reminder_" . sprintf("%02d",$i) . "_alarmtime" )) ;		
-					#print (fhem( "deletereading $DeviceName reminder_" . sprintf("%02d",$i) . "_recurring" )) ;		
 				}
 				else {last;}
 			}
@@ -1863,9 +1858,6 @@ sub echodevice_Parse($$$) {
 					readingsDelete($echohash, "alarm_" . sprintf("%02d",$i) . "_id") ;
 					readingsDelete($echohash, "alarm_" . sprintf("%02d",$i) . "_originalTime") ;
 					readingsDelete($echohash, "alarm_" . sprintf("%02d",$i) . "_status") ;
-					#print (fhem( "deletereading $DeviceName alarm_" . sprintf("%02d",$i) . "_id" )) ;
-					#print (fhem( "deletereading $DeviceName alarm_" . sprintf("%02d",$i) . "_originalTime" )) ;				
-					#print (fhem( "deletereading $DeviceName alarm_" . sprintf("%02d",$i) . "_status" )) ;	
 				}
 				else {last;}
 			}
@@ -1889,9 +1881,6 @@ sub echodevice_Parse($$$) {
 					readingsDelete($echohash, "musicalarm_" . sprintf("%02d",$i) . "_id") ;
 					readingsDelete($echohash, "musicalarm_" . sprintf("%02d",$i) . "_originalTime") ;
 					readingsDelete($echohash, "musicalarm_" . sprintf("%02d",$i) . "_status") ;
-					#print (fhem( "deletereading $DeviceName alarm_" . sprintf("%02d",$i) . "_id" )) ;
-					#print (fhem( "deletereading $DeviceName alarm_" . sprintf("%02d",$i) . "_originalTime" )) ;				
-					#print (fhem( "deletereading $DeviceName alarm_" . sprintf("%02d",$i) . "_status" )) ;	
 				}
 				else {last;}
 			}
@@ -2050,6 +2039,16 @@ sub echodevice_GetSettings($) {
 		echodevice_SendCommand($hash,"getisonline","");
 	}else {
 
+		# ECHO am Account registrierern
+		$hash->{IODev}->{helper}{"ECHODEVICES"} = () if( !defined($hash->{IODev}->{helper}{"ECHODEVICES"}));
+		
+		if (!defined($hash->{IODev}->{helper}{"ECHODEVICES"}{$hash->{helper}{"SERIAL"}})) {
+			$hash->{IODev}->{helper}{"ECHODEVICES"}{$hash->{helper}{"SERIAL"}} = $hash ;
+			$hash->{IODev}->{helper}{"DEVICETYPE"} = $hash->{helper}{"DEVICETYPE"} ;
+			$hash->{IODev}->{helper}{"SERIAL"}     = $hash->{helper}{"SERIAL"};
+			$hash->{IODev}->{helper}{"VERSION"}    = $hash->{helper}{"VERSION"};		
+		}
+		
 		if ($hash->{model} eq "Reverb" || $hash->{model} eq "Sonos One") {
 			if ($hash->{IODev}{STATE} eq "connected") {
 				readingsBeginUpdate($hash);
@@ -2281,38 +2280,38 @@ sub echodevice_GetTracks($) {
 }
 
 sub echodevice_SearchTunein($$) {
-  my ($hash,$parameter) = @_;
-  my $name = $hash->{NAME};
-
+	my ($hash,$parameter) = @_;
+	my $name = $hash->{NAME};
   
-  return undef if(!defined($hash->{helper}{SERVER}));
-  return undef if(!defined($hash->{helper}{CUSTOMER}));
+	return undef if(!defined($hash->{helper}{SERVER}));
+	return undef if(!defined($hash->{helper}{CUSTOMER}));
 
-  my $url="https://".$hash->{helper}{SERVER}."/api/tunein/search?query=".uri_escape_utf8(decode_utf8($parameter))."&mediaOwnerCustomerId=".$hash->{helper}{CUSTOMER}."&_=".int(time);
-  Log3 ($name, 4, "Getting tunein search URL ".echodevice_anonymize($hash, $url));
+	my $url="https://".$hash->{helper}{SERVER}."/api/tunein/search?query=".uri_escape_utf8(decode_utf8($parameter))."&mediaOwnerCustomerId=".$hash->{helper}{CUSTOMER}."&_=".int(time);
+	Log3 ($name, 4, "Getting tunein search URL ".echodevice_anonymize($hash, $url));
 
-  my($err,$data) = HttpUtils_BlockingGet({
-    url => $url,
-    header => 'Cookie: '.$hash->{helper}{COOKIE},
-    noshutdown => 1,
-    hash => $hash,
-  });
-  my $json = eval { JSON->new->utf8(0)->decode($data) };
+	my($err,$data) = HttpUtils_BlockingGet({
+		url => $url,
+		header => 'Cookie: '.$hash->{helper}{COOKIE},
+		noshutdown => 1,
+		hash => $hash,
+	});
+	
+	my $json = eval { JSON->new->utf8(0)->decode($data) };
   
-  my $return = "Results:\n\nID          \tName\n\n";
-  return $return if(!defined($json->{browseList}));
-  return $return if(ref($json->{browseList}) ne "ARRAY");
+	my $return = "Results:\n\nID          \tName\n\n";
+	return $return if(!defined($json->{browseList}));
+	return $return if(ref($json->{browseList}) ne "ARRAY");
 
-  foreach my $result (@{$json->{browseList}}) {
-    next if(!$result->{available});
-    next if($result->{contentType} ne "station");
-    $return .= $result->{id};
-    $return .= "     \t";
-    $return .= $result->{name};
-    $return .= "\n";
-  }
+	foreach my $result (@{$json->{browseList}}) {
+		next if(!$result->{available});
+		next if($result->{contentType} ne "station");
+		$return .= $result->{id};
+		$return .= "     \t";
+		$return .= $result->{name};
+		$return .= "\n";
+	}
   
-  return $return;
+	return $return;
 }
 
 ##########################
@@ -2321,6 +2320,8 @@ sub echodevice_FirstStart($) {
 	my ($hash) = @_;
 	my $name = $hash->{NAME};
 	my $CookieDevice = "";
+	
+	readingsSingleUpdate ($hash, "version", $ModulVersion ,0);
 	
 	if(AttrVal( $name, "timeout", "none" ) ne "none") {
 		readingsSingleUpdate ($hash, "COOKIE_TYPE", "ATTRIBUTE" ,0);
@@ -2425,23 +2426,22 @@ sub echodevice_ParseAuth($$$) {
 }
 
 sub echodevice_GetAccount($) {
-  my ($hash) = @_;
-  my $name = $hash->{NAME};
+	my ($hash) = @_;
+	my $name = $hash->{NAME};
 
+	my $url="https://alexa-comms-mobile-service.amazon.com/accounts";
+	Log3 ($name, 4, "Getting accounts URL $url");
 
-  my $url="https://alexa-comms-mobile-service.amazon.com/accounts";
-  Log3 ($name, 4, "Getting accounts URL $url");
-
-  HttpUtils_NonblockingGet({
-    url => $url,
-    method => "GET",
-    header => "Cookie: ".$hash->{helper}{COOKIE}."\r\nContent-Type: application/json",
-    timeout => 10,
-    hash => $hash,
-    type => 'account',
-    callback => \&echodevice_Parse,
-  });
-  return undef;
+	HttpUtils_NonblockingGet({
+		url => $url,
+		method => "GET",
+		header => "Cookie: ".$hash->{helper}{COOKIE}."\r\nContent-Type: application/json",
+		timeout => 10,
+		hash => $hash,
+		type => 'account',
+		callback => \&echodevice_Parse,
+	});
+	return undef;
 }
 
 sub echodevice_GetHomeGroup($) {
