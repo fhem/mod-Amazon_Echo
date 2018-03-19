@@ -1,7 +1,14 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
-# 2018-03-13 v0.0.29
+# 2018-03-18 v0.0.30
+# - FEATURE: Text2Speech (TTS) inkl. Google und Amazon Stimmen
+#            Musik aus dem eigenen LAN abspielen
+#            Neue Attribute:   ALLE     "TTS_Voice" und "TTS_IgnorPlay"
+#            Neue Set Befehle: ACCOUNT  "AWS_Access_Key","AWS_OutputFormat","AWS_Secret_Key","POM_Filename","POM_IPAddress","POM_TuneIn","TTS_Filename","TTS_IPAddress" und "TTS_TuneIn"
+#            Neue Set Befehle: Nur ECHO "tts", "playownmusic", "playownplaylist", "deleteownplaylist", und "saveownplaylist"
+# - CHANGE:  get "help"
+#            Reihenfolge get settings https://forum.fhem.de/index.php/topic,82631.msg781731.html#msg781731
 #
 # v0.0.29
 # - FEATURE: Zwei Faktor Authentifizierung (set login2FACode) Danke Benutzer JoWiedmann https://forum.fhem.de/index.php/topic,82631.msg780848.html#msg780848
@@ -174,7 +181,8 @@ use utf8;
 use Date::Parse;
 use Time::Piece;
 
-my $ModulVersion = "0.0.28";
+my $ModulVersion     = "0.0.30";
+my $AWSPythonVersion = "0.0.2";
 
 ##############################################################################
 
@@ -198,6 +206,8 @@ sub echodevice_Initialize($) {
 	$hash->{AttrFn}       = "echodevice_Attr";
 	$hash->{AttrList}     = "disable:0,1 ".
 							"IODev ".
+							"TTS_Voice:AustralianEnglish_Female_Nicole,AustralianEnglish_Male_Russell,BrazilianPortuguese_Female_Vitoria,BrazilianPortuguese_Male_Ricardo,BritishEnglish_Female_Amy,BritishEnglish_Female_Emma,BritishEnglish_Male_Brian,CanadianFrench_Female_Chantal,CastilianSpanish_Female_Conchita,CastilianSpanish_Male_Enrique,Danish_Female_Naja,Danish_Male_Mads,Dutch_Female_Lotte,Dutch_Male_Ruben,French_Female_Celine,French_Male_Mathieu,German_Female_Google,German_Female_Marlene,German_Female_Vicki,German_Male_Hans,Icelandic_Female_Dora,Icelandic_Male_Karl,IndianEnglish_Female_Aditi,IndianEnglish_Female_Raveena,Italian_Female_Carla,Italian_Male_Giorgio,Japanese_Female_Mizuki,Japanese_Male_Takumi,Korean_Female_Seoyeon,Norwegian_Female_Liv,Polish_Female_Ewa,Polish_Female_Maja,Polish_Male_Jacek,Polish_Male_Jan,Portuguese_Female_Ines,Portuguese_Male_Cristiano,Romanian_Female_Carmen,Russian_Female_Tatyana,Russian_Male_Maxim,Swedish_Female_Astrid,Turkish_Female_Filiz,USEnglish_Female_Ivy,USEnglish_Female_Joanna,USEnglish_Female_Kendra,USEnglish_Female_Kimberly,USEnglish_Female_Salli,USEnglish_Male_Joey,USEnglish_Male_Justin,USEnglish_Male_Matthew,USSpanish_Female_Penelope,USSpanish_Male_Miguel,Welsh_Female_Gwyneth,WelshEnglish_Male_Geraint ".
+							"TTS_IgnorPlay:0,1 ".
 							"intervalsettings ".
 							"intervallogin ".
 							"server ".
@@ -384,21 +394,27 @@ sub echodevice_Get($@) {
 
 		my $return = '<html><table align="" border="0" cellspacing="0" cellpadding="3" width="100%" height="100%" class="mceEditable"><tbody>';
 		$return   .= "<p><strong>Hilfe:</strong></p>";
-		$return   .= "<tr><td><strong>Dokumentation&nbsp;&nbsp;&nbsp</strong></td><td><strong>Link&nbsp;&nbsp;&nbsp</strong></td></tr>";			
-	
-		$return .= "<tr><td>"."Beschreibung"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Beschreibung' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Beschreibung</td></tr>";
-		$return .= "<tr><td>"."Definition in FHEM"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Definition in FHEM' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Definition in FHEM</td></tr>";
+		$return   .= "<tr><td><strong>Dokumentation&nbsp;&nbsp;&nbsp</strong></td><td><strong></strong></td></tr>";			
+		$return .= "<tr><td>"."Beschreibung"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice</td></tr>";
 		$return .= "<tr><td>"."Readings"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Readings' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Readings</td></tr>";
 		$return .= "<tr><td>"."Attribute"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Attribute' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Attribute</td></tr>";
 		$return .= "<tr><td>"."Set"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Set' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Set</td></tr>";
 		$return .= "<tr><td>"."Get"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Get' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Get</td></tr>";
 		$return .= "<tr><td>"."Medieninformationen ermitteln"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Medieninformationen_ermitteln' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Medieninformationen_ermitteln</td></tr>";
 		$return .= "<tr><td>"."Cookie_ermitteln"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Cookie_ermitteln' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Cookie_ermitteln</td></tr>";
+		$return .= "<tr><td>"."MP3 Playlisten"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#MP3_Playlisten' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#MP3_Playlisten</td></tr>";
+		$return .= "<tr><td>"."Amazon Stimmen"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#AWS_Konfiguration' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#AWS_Konfiguration</td></tr>";
 		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
+
+		$return .= "<tr><td><strong>Anleitungen</strong></td><td></td></tr>";
+		$return .= "<tr><td></td><td></td></tr>";
+		$return .= "<tr><td>"."Amazon ECHO TTS/POM"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/amazon-echo-tts-mp3s/' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/amazon-echo-tts-mp3s/</td></tr>";
+		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
+		
 		$return .= "<tr><td><strong>Forum</strong></td><td></td></tr>";
 		$return .= "<tr><td></td><td></td></tr>";
-
 		$return .= "<tr><td>"."Forums Thread"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://forum.fhem.de/index.php/topic,82631.0.html' .'"'. "</a>https://forum.fhem.de/index.php/topic,82631.0.html</td></tr>";
+		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
 		
 		$return .= "</tbody></table></html>";
 
@@ -424,7 +440,7 @@ sub echodevice_Set($@) {
 	
 	if($hash->{model} eq "ACCOUNT") {
 		$usage .= 'login:noArg autocreate_devices:noArg item_shopping_add item_task_add login2FACode ';
-		$usage .= 'textmessage ' if(defined($hash->{helper}{COMMSID}));
+		$usage .= 'AWS_Access_Key AWS_Secret_Key TTS_IPAddress TTS_Filename TTS_TuneIn POM_TuneIn POM_IPAddress POM_Filename AWS_OutputFormat:mp3,ogg_vorbis,pcm textmessage ' if(defined($hash->{helper}{COMMSID}));
 		
 		# Einkaufsliste
 		my $ShoppingListe = ReadingsVal($name, "list_SHOPPING_ITEM", "");
@@ -436,7 +452,7 @@ sub echodevice_Set($@) {
 	}
 	elsif ($hash->{model} eq "Echo Multiroom" || $hash->{model} eq "Sonos Display") {
 		$usage .= 'volume:slider,0,1,100 play:noArg pause:noArg next:noArg previous:noArg forward:noArg rewind:noArg shuffle:on,off repeat:on,off ';
-		$usage .= 'tunein primeplaylist primeplaysender primeplayeigene primeplayeigeneplaylist ';
+		$usage .= 'tunein primeplaylist primeplaysender primeplayeigene primeplayeigeneplaylist tts playownmusic:textField-long saveownplaylist:textField-long ';
 		
 		if(defined($tracks)) {
 				$tracks =~ s/ /_/g;
@@ -446,7 +462,10 @@ sub echodevice_Set($@) {
 			else {
 				$usage .= 'track ';
 		}
+		# startownplaylist
+		$usage .= echodevice_GetOwnPlaylist($hash);
 	}
+		
 	else {
 	
 		if ($hash->{model} eq "Reverb" || $hash->{model} eq "Sonos One") {
@@ -454,7 +473,10 @@ sub echodevice_Set($@) {
 		}
 		else {
 			$usage .= 'volume:slider,0,1,100 play:noArg pause:noArg next:noArg previous:noArg forward:noArg rewind:noArg shuffle:on,off repeat:on,off dnd:on,off volume_alarm:slider,0,1,100 ';
-			$usage .= 'tunein primeplaylist primeplaysender primeplayeigene primeplayeigeneplaylist reminder_normal reminder_repeat ';
+			$usage .= 'tunein primeplaylist primeplaysender primeplayeigene primeplayeigeneplaylist reminder_normal reminder_repeat tts playownmusic:textField-long saveownplaylist:textField-long ';
+			
+			# startownplaylist
+			$usage .= echodevice_GetOwnPlaylist($hash);
 			
 			if(defined($tracks)) {
 				$tracks =~ s/ /_/g;
@@ -948,6 +970,74 @@ sub echodevice_Set($@) {
 		$hash->{helper}{TWOFA} = $a[0];
 		
         echodevice_SendLoginCommand($hash,"cookielogin4","");		
+	}
+
+	elsif($command eq "AWS_Access_Key" || $command eq "AWS_Secret_Key" ) {
+		readingsBeginUpdate($hash);
+		readingsBulkUpdateIfChanged($hash, lc($command), echodevice_encrypt($parameter), 1);
+		readingsEndUpdate($hash,1);	
+	}
+
+	elsif($command eq "TTS_Filename" || $command eq "POM_Filename" || $command eq "TTS_TuneIn" || $command eq "POM_TuneIn" || $command eq "AWS_OutputFormat" || $command eq "TTS_IPAddress" || $command eq "POM_IPAddress" ) {
+		readingsBeginUpdate($hash);
+		readingsBulkUpdateIfChanged($hash, lc($command), $parameter, 1);
+		readingsEndUpdate($hash,1);		
+	}	
+	
+	elsif($command eq "tts") {
+
+		return "No argument given." if ( !defined($a[0]) );
+		
+		return "TTS can not play. The ECHO device $name is playing other media." if (AttrVal($hash->{IODev}->{NAME},"TTS_IgnorPlay",1) == 0 && ReadingsVal( $name, "playStatus", "stopped") eq "playing");
+		return "TTS can not play. The ECHO device $name is playing other media." if (AttrVal($name,"TTS_IgnorPlay",1) == 0 && ReadingsVal( $name, "playStatus", "stopped") eq "playing");
+		return "TTS can not play. Please define TTS_IPAdrees at the ECHO ACCOUNT DEVICE " . $hash->{IODev}->{NAME} if (ReadingsVal($hash->{IODev}->{NAME} , lc("TTS_IPAddress"), "none") eq "none");
+		
+		my $TTS_Voice  = AttrVal($name,"TTS_Voice","German_Female_Google"); 
+		
+		if ($TTS_Voice eq "German_Female_Google") {
+			echodevice_Google($hash,$parameter);
+		}
+		else {
+			echodevice_Amazon($hash,$parameter);
+		}
+
+	}
+
+	elsif($command eq "playownmusic") {
+
+		return "No argument given." if ( !defined($a[0]) );
+	
+		return "POM can not play. Please define POM_IPAdrees at the ECHO ACCOUNT DEVICE " . $hash->{IODev}->{NAME} if (ReadingsVal($hash->{IODev}->{NAME} , lc("POM_IPAddress"), "none") eq "none");
+ 		echodevice_PlayOwnMP3($hash,$parameter);
+
+	}
+
+	elsif($command eq "saveownplaylist") {
+
+		return "No argument given." if ( !defined($a[0]) );
+	
+ 		echodevice_SaveOwnPlaylist($hash,$parameter);
+
+	}
+
+	elsif($command eq "playownplaylist") {
+
+		return "No argument given." if ( !defined($a[0]) );
+		
+		my $WEBAddress = ReadingsVal($hash->{IODev}->{NAME} , lc("POM_IPAddress"), "none");
+		return "POM can not play. Please define POM_IPAdrees at the ECHO ACCOUNT DEVICE " . $hash->{IODev}->{NAME} if ($WEBAddress eq "none");	
+	
+ 		echodevice_PlayOwnMP3($hash,"http://" . $WEBAddress . "/playlists/" . $parameter);
+
+	}
+
+	elsif($command eq "deleteownplaylist") {
+
+		return "No argument given." if ( !defined($a[0]) );
+	
+		# Playliste löschen
+		if ((-e $FW_dir . "/echodevice/playlists/". $parameter)) {unlink $FW_dir . "/echodevice/playlists/".$parameter}
+
 	}
 	
 	else {
@@ -2361,7 +2451,8 @@ sub echodevice_Parse($$$) {
 		$return .= "</tbody></table>";
 		$return .= "<p><strong>".$tuneincount. " tunein IDs found</strong></p>";
 		$return .= "</html>";
-			
+		$return =~ s/'/&#x0027/g;
+		
 		asyncOutput( $param->{CL}, $return );
 	}
 	
@@ -2386,6 +2477,7 @@ sub echodevice_Parse($$$) {
 			$return .= "</tbody></table>";
 			$return .= "<p><strong>".$trackcount." track IDs found</strong></p>";
 			$return .= "</html>";
+			$return =~ s/'/&#x0027/g;
 			
 			asyncOutput( $param->{CL}, $return );	
 	}
@@ -2463,16 +2555,18 @@ sub echodevice_Parse($$$) {
 				foreach my $cards (@{$json->{cards}}) {
 					my $devicehash = $modules{$hash->{TYPE}}{defptr}{"$cards->{sourceDevice}{serialNumber}"};
 					my $devicename = $devicehash->{NAME};
+					my $VoiceText  = $cards->{playbackAudioAction}{mainText};
+					$VoiceText = "No voice command detected. Action was started by the Alexa app." if ($VoiceText eq "");
 					
 					if (AttrVal( $devicename, "alias", "none" ) ne "none") {$devicename = AttrVal( $devicename, "alias", "none" );}
-					
-				
-					$return .= "<tr><td>".$cards->{title}."&nbsp;&nbsp;&nbsp;</td><td>".$cards->{subtitle}."&nbsp;&nbsp;&nbsp;</td><td>".$cards->{playbackAudioAction}{mainText}."&nbsp;&nbsp;&nbsp;</td><td>".$devicename."&nbsp;&nbsp;&nbsp;</td></tr>";
+
+					$return .= "<tr><td>".$cards->{title}."&nbsp;&nbsp;&nbsp;</td><td>".$cards->{subtitle}."&nbsp;&nbsp;&nbsp;</td><td>".$VoiceText."&nbsp;&nbsp;&nbsp;</td><td>".$devicename."&nbsp;&nbsp;&nbsp;</td></tr>";
 				}
 			}
 		
 			$return .= "</tbody></table>";
 			$return .= "</html>";
+			$return =~ s/'/&#x0027/g;
 			
 			asyncOutput( $param->{CL}, $return );	
 	}
@@ -2519,12 +2613,12 @@ sub echodevice_GetSettings($) {
 			echodevice_SendCommand($hash,"bluetoothstate","");
 			echodevice_SendCommand($hash,"getdnd","");
 			echodevice_SendCommand($hash,"wakeword","");
-			echodevice_SendCommand($hash,"activities","");
 			echodevice_SendCommand($hash,"listitems_task","TASK");
 			echodevice_SendCommand($hash,"listitems_shopping","SHOPPING_ITEM");
 			echodevice_SendCommand($hash,"getdevicesettings","");
 			echodevice_SendCommand($hash,"getisonline","");
 			echodevice_SendCommand($hash,"account","");
+			echodevice_SendCommand($hash,"activities","");
 			#echodevice_SendCommand($hash,"homegroup","") if(defined($hash->{helper}{COMMSID}));	
 		}else {
 		
@@ -2723,9 +2817,10 @@ sub echodevice_getModel($){
 sub echodevice_Attr($$$) {
   
 	my ($cmd, $name, $attrName, $attrVal) = @_;
+	my $hash = $defs{$name};
 
 	if( $attrName eq "cookie" ) {
-		my $hash = $defs{$name};
+		#my $hash = $defs{$name};
 		if( $cmd eq "set" ) {
 			$attrVal =~ s/Cookie: //g;
 			$hash->{helper}{COOKIE} = $attrVal;
@@ -2735,8 +2830,8 @@ sub echodevice_Attr($$$) {
 		}
 	}
 	
-	if( $attrName eq "server" ) {
-		my $hash = $defs{$name};
+	if ( $attrName eq "server" ) {
+		#my $hash = $defs{$name};
 		if( $cmd eq "set" ) {
 		  $hash->{helper}{SERVER} = $attrVal;
 		}
@@ -2816,6 +2911,370 @@ sub echodevice_setState($$) {
 		readingsEndUpdate($echohash,1);
 	}
 	return;
+}
+
+##########################
+# TTS/POM
+sub echodevice_AWSPython($$) {
+	my ($hash,$Skriptfile) = @_;
+	my $name = $hash->{NAME};
+
+	#Verzeichnis anlegen
+	my $filedir ="cache";
+	mkdir($filedir, 0777) unless(-d $filedir );
+	
+	my $filename  = $filedir ."/". $Skriptfile;
+	
+	# Prüfen ob die Datei erstezt werden muss
+	if ($AWSPythonVersion eq ReadingsVal($hash->{IODev}->{NAME} , lc("AWS_PythonVersion"), "0") && (-e $filename)) {
+		Log3 "echodevice", 4, "[$name] [echodevice_AWSPython] file $filename exist";
+		return;
+	}
+
+	Log3 "echodevice", 3, "[$name] [echodevice_AWSPython] file $filename not exist or to old";
+	
+	readingsBeginUpdate($hash->{IODev});
+	readingsBulkUpdateIfChanged($hash->{IODev}, lc("AWS_PythonVersion"), $AWSPythonVersion, 1);
+	readingsEndUpdate($hash->{IODev},1);
+	
+	#altes Skript löschen
+	if ((-e $filename)) {unlink $filename};
+	
+	#Skript Inhalt
+	my $SkriptContent = "# IAM API (CreateUser) adapted to Polly service\n";
+	$SkriptContent .= "import sys, os, base64, datetime, hashlib, hmac, urllib\n";
+	$SkriptContent .= "sys.path.append('../')\n";
+	$SkriptContent .= "import requests\n";
+	$SkriptContent .= "# Parameter\n";
+	$SkriptContent .= "MessageText  = sys.argv[1]\n";
+	$SkriptContent .= "MessageVoice = sys.argv[2]\n";
+	$SkriptContent .= "access_key   = sys.argv[3]\n";
+	$SkriptContent .= "secret_key   = sys.argv[4]\n";
+	$SkriptContent .= "OutputFormat = sys.argv[7]\n";
+	$SkriptContent .= "# DEFs\n";
+	$SkriptContent .= "def sign(key, msg):\n";
+	$SkriptContent .= "    return hmac.new(key, msg.encode('utf-8'), hashlib.sha256).digest()\n";
+	$SkriptContent .= "\n";
+	$SkriptContent .= "def getSignatureKey(key, dateStamp, regionName, serviceName):\n";
+	$SkriptContent .= "    kDate = sign(('AWS4' + key).encode('utf-8'), dateStamp)\n";
+	$SkriptContent .= "    kRegion = sign(kDate, regionName)\n";
+	$SkriptContent .= "    kService = sign(kRegion, serviceName)\n";
+	$SkriptContent .= "    kSigning = sign(kService, 'aws4_request')\n";
+	$SkriptContent .= "    return kSigning\n";
+	$SkriptContent .= "# ************* REQUEST VALUES *************\n";
+	$SkriptContent .= "method       = 'POST'\n";
+	$SkriptContent .= "service      = 'polly'\n";
+	$SkriptContent .= "region       = 'eu-west-1'\n";
+	$SkriptContent .= "host         = service+'.'+region+'.amazonaws.com'\n";
+	$SkriptContent .= "api          = '/v1/speech'\n";
+	$SkriptContent .= "endpoint     = 'https://'+host+api\n";
+	$SkriptContent .= "content_type = 'application/json'\n";
+	$SkriptContent .= "# ************* REQUEST CONTENT ************\n";
+	$SkriptContent .= "request_parameters = '{'\n";
+	$SkriptContent .= "request_parameters +=  '" . '"' . "OutputFormat" . '"' . ": " . '"' . "' + OutputFormat + '" . '"' . ",'\n";
+	$SkriptContent .= "request_parameters +=  '" . '"' . "Text"         . '"' . ": " . '"' . "' + MessageText  + '" . '"' . ",'\n";
+	$SkriptContent .= "request_parameters +=  '" . '"' . "TextType"     . '"' . ": " . '"' . "text" . '"' . ",'\n";
+	$SkriptContent .= "request_parameters +=  '" . '"' . "VoiceId"      . '"' . ": " . '"' . "' + MessageVoice + '" . '"' . "'\n";
+	$SkriptContent .= "request_parameters +=  '}'\n";
+	$SkriptContent .= "# Create a date for headers and the credential string\n";
+	$SkriptContent .= "t = datetime.datetime.utcnow()\n";
+	$SkriptContent .= "amz_date = t.strftime('%Y%m%dT%H%M%SZ')\n";
+	$SkriptContent .= "date_stamp = t.strftime('%Y%m%d')\n";
+	$SkriptContent .= "# ************* TASK 1: CREATE A CANONICAL REQUEST *************\n";
+	$SkriptContent .= "canonical_uri = api\n";
+	$SkriptContent .= "canonical_querystring = ''\n";
+	$SkriptContent .= "canonical_headers = 'content-type:' + content_type + '\\n' + 'host:' + host + '\\n' + 'x-amz-date:' + amz_date + '\\n'\n";
+	$SkriptContent .= "signed_headers = 'content-type;host;x-amz-date'\n";
+	$SkriptContent .= "payload_hash = hashlib.sha256(request_parameters).hexdigest()\n";
+	$SkriptContent .= "canonical_request = method + '\\n' + canonical_uri + '\\n' + canonical_querystring + '\\n' + canonical_headers + '\\n' + signed_headers + '\\n' + payload_hash\n";
+	$SkriptContent .= "# ************* TASK 2: CREATE THE STRING TO SIGN*************\n";
+	$SkriptContent .= "algorithm = 'AWS4-HMAC-SHA256'\n";
+	$SkriptContent .= "credential_scope = date_stamp + '/' + region + '/' + service + '/' + 'aws4_request'\n";
+	$SkriptContent .= "string_to_sign = algorithm + '\\n' +  amz_date + '\\n' +  credential_scope + '\\n' +  hashlib.sha256(canonical_request).hexdigest()\n";
+	$SkriptContent .= "# ************* TASK 3: CALCULATE THE SIGNATURE *************\n";
+	$SkriptContent .= "signing_key = getSignatureKey(secret_key, date_stamp, region, service)\n";
+	$SkriptContent .= "signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()\n";
+	$SkriptContent .= "# ************* TASK 4: ADD SIGNING INFORMATION TO THE REQUEST *************\n";
+	$SkriptContent .= "authorization_header = algorithm + ' ' + 'Credential=' + access_key + '/' + credential_scope + ', ' +  'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + signature\n";
+	$SkriptContent .= "# ************* TASK 5: ADD SIGNING INFORMATION TO FHEM *************\n";
+	$SkriptContent .= "f=open(sys.argv[5],'wb')\n";
+	$SkriptContent .= "f.write(amz_date)\n";
+	$SkriptContent .= "f.close()\n";
+	$SkriptContent .= "f=open(sys.argv[6],'wb')\n";
+	$SkriptContent .= "f.write(authorization_header)\n";
+	$SkriptContent .= "f.close()\n";
+
+	open(FH, ">$filename");
+	print FH $SkriptContent;
+	close(FH);
+
+}
+
+sub echodevice_Amazon($$) {
+	my ($hash,$parameter) = @_;
+	my $name = $hash->{NAME};
+	
+	my $AWS_Access_Key = ReadingsVal($hash->{IODev}->{NAME} , lc("AWS_Access_Key"), "none");
+	my $AWS_Secret_Key = ReadingsVal($hash->{IODev}->{NAME} , lc("AWS_Secret_Key"), "none");
+		
+	if ( $AWS_Access_Key eq "none" ) {
+		readingsSingleUpdate( $hash, "tts_error", "No AWS_Access_Key Value",1 );
+		return "No AWS_Access_Key Value" ;
+	}
+	if ( $AWS_Secret_Key eq "none" ){
+		readingsSingleUpdate( $hash, "tts_error", "No AWS_Secret_Key Value",1 );
+		return "No AWS_Secret_Key Value";
+	}
+	
+	#Defaults
+	my $TTS_Voice  = AttrVal($name,"TTS_Voice","German_Female_Marlene"); 
+	my $AWS_Format = ReadingsVal($hash->{IODev}->{NAME} , lc("AWS_OutputFormat"), "mp3"); 
+	my @VoiceName = split("_",$TTS_Voice);
+
+	#Verzeichnis anlegen
+	my $filedir = "cache";
+	mkdir($filedir, 0777) unless(-d $filedir );
+	
+	#Temp Dateien
+	my $AWS_File_AMZDate = $filedir . "/amzdate";
+	my $AWS_File_Header  = $filedir . "/header";
+	
+	if ((-e "$AWS_File_AMZDate")) {unlink "$AWS_File_AMZDate"}	
+	if ((-e "$AWS_File_Header"))  {unlink "$AWS_File_Header"}	
+	
+	# Python Skript ausführen
+	echodevice_AWSPython($hash,"pollyspeech.py");
+	my $ret = system('python ' . $filedir . '/pollyspeech.py "' . $parameter .'" ' . @VoiceName[2]  .' '. echodevice_decrypt($AWS_Access_Key) . " " . echodevice_decrypt($AWS_Secret_Key) . " " . $AWS_File_AMZDate . " " . $AWS_File_Header . " " . $AWS_Format);
+
+	# Infos auswerten 
+	my $AWSDate;
+	open FILE, $AWS_File_AMZDate or do {
+		Log3 $name, 3, "[$name] [echodevice_Amazon] Could not read from $AWS_File_AMZDate";
+		readingsSingleUpdate( $hash, "tts_error", "Could not read from $AWS_File_AMZDate",1 );
+		return;
+	};
+	chomp(my $AWSDate = <FILE>);
+	close FILE;
+		
+	my $AWSHeader;
+	open FILE, $AWS_File_Header or do {
+		Log3 $name, 3, "[$name] [echodevice_Amazon] Could not read from $AWS_File_Header";
+		readingsSingleUpdate( $hash, "tts_error", "Could not read from $AWS_File_Header",1 );
+		return;
+	};
+	chomp(my $AWSHeader = <FILE>);
+	close FILE;
+			
+	# MP3 Download starten
+	my $params =  {
+        url             => "https://polly.eu-west-1.amazonaws.com/v1/speech",
+		header          => "Authorization: ".$AWSHeader."\r\nX-Amz-Date: ".$AWSDate."\r\nContent-Type: application/json",
+		method          => "POST",
+		data            => '{"OutputFormat": "' . $AWS_Format . '","Text": "' . $parameter .'","TextType": "text","VoiceId": "' . @VoiceName[2] . '"}',
+        hash            => $hash,
+        callback        => \&echodevice_ParseTTSMP3
+    };
+
+	HttpUtils_NonblockingGet($params);
+
+}
+
+sub echodevice_Google($$) {
+	my ($hash,$parameter) = @_;
+	my $name = $hash->{NAME};
+
+	# ersetze Sonderzeichen die Google nicht auflösen kann
+	my $MessageText = decode_utf8($parameter);
+	$MessageText =~ s/ä/ae/g;
+	$MessageText =~ s/ö/oe/g;
+	$MessageText =~ s/ü/ue/g;
+    $MessageText =~ s/Ä/Ae/g;
+    $MessageText =~ s/Ö/Oe/g;
+    $MessageText =~ s/Ü/Ue/g;
+    $MessageText =~ s/ß/ss/g;	
+	
+	Log3 $name, 4, "[$name] [echodevice_ParseTTSMP3] TTS Message length=" . length($MessageText) ;
+	
+	if (length($MessageText) > 200) {
+		Log3 $name, 3, "[$name] [echodevice_ParseTTSMP3] TTS Message to long!";
+		readingsSingleUpdate( $hash, "tts_error", "TTS Message to long",1 );
+		$MessageText = substr($MessageText,0,202)
+	}
+	
+	# MP3 Download starten
+	my $params =  {
+        url             => "http://translate.google.com/translate_tts?tl=de&client=tw-ob&q=" . uri_escape($MessageText),
+		method          => "GET",
+        hash            => $hash,
+        callback        => \&echodevice_ParseTTSMP3
+    };
+
+	HttpUtils_NonblockingGet($params);
+}
+
+sub echodevice_ParseTTSMP3($) {
+	my ($param, $err, $data) = @_;
+	my $hash = $param->{hash};
+	my $name = $hash->{NAME};
+	Log3 $name, 4, "[$name] [echodevice_ParseTTSMP3] URL    = " . $param->{url};
+	Log3 $name, 4, "[$name] [echodevice_ParseTTSMP3] DATA   = " . $param->{data};
+	Log3 $name, 4, "[$name] [echodevice_ParseTTSMP3] HEADER = " . $param->{header};
+	Log3 $name, 4, "[$name] [echodevice_ParseTTSMP3] ERROR  = " . $err;
+	Log3 $name, 5, "[$name] [echodevice_ParseTTSMP3] DATA   = " . $data;
+
+	#ReadingsVal($hash->{IODev}->{NAME} , lc("TTS_Filename"), "")
+	my $MP3Filename = $name . ".mp3";
+	my $M3UFilename = ReadingsVal($hash->{IODev}->{NAME} , lc("TTS_Filename"), "live18-hq.aac.m3u");
+	
+	Log3 $name, 4, "[$name] [echodevice_ParseTTSMP3] MP3File     = " . $MP3Filename;
+	Log3 $name, 4, "[$name] [echodevice_ParseTTSMP3] M3UFile     = " . $M3UFilename;
+
+	if ($data eq "") {
+		Log3 $name, 3, "[$name] [echodevice_ParseTTSMP3] no data received";
+		readingsSingleUpdate( $hash, "tts_error", "no data received",1 );
+		return;
+	}
+	
+	# MP3/M3U Datei löschen
+	if ((-e $FW_dir . "/echodevice/". $MP3Filename)) {unlink $FW_dir . "/echodevice/". $MP3Filename}
+	if ((-e $FW_dir . "/echodevice/". $M3UFilename)) {unlink $FW_dir . "/echodevice/".$M3UFilename}
+	
+	# MP3 Datei anlegen
+	open(FH, ">$FW_dir/echodevice/$MP3Filename");
+	print FH $data;
+	close(FH);
+	
+	# M3U Datei erzeugen
+	open(FH, ">$FW_dir/echodevice/$M3UFilename");
+	print FH "http://" . ReadingsVal($hash->{IODev}->{NAME} , lc("TTS_IPAddress"), "live18-hq.aac.m3u") . "/" . $MP3Filename;
+	close(FH);
+
+	sleep 0.5;
+	
+	echodevice_SendCommand($hash,"tunein",ReadingsVal($hash->{IODev}->{NAME} , "TTS_TuneIn", "s237481"));
+}
+
+sub echodevice_PlayOwnMP3($$) {
+	my ($hash,$M3UContent) = @_;
+	my $name = $hash->{NAME};
+
+	Log3 $name, 4, "[$name] [echodevice_PlayOwnMP3] M3UContent = " . $M3UContent;
+
+	#ReadingsVal($hash->{IODev}->{NAME} , lc("TTS_Filename"), "")
+	my $M3UFilename = ReadingsVal($hash->{IODev}->{NAME} , lc("POM_Filename"), "stream.m3u");
+	
+	Log3 $name, 4, "[$name] [echodevice_PlayOwnMP3] M3UFile= " . $M3UFilename;
+
+	if ($M3UContent eq "") {
+		Log3 $name, 3, "[$name] [echodevice_PlayOwnMP3] no data received";
+		return;
+	}
+	
+	# M3U Datei löschen
+	if ((-e $FW_dir . "/echodevice/". $M3UFilename)) {unlink $FW_dir . "/echodevice/".$M3UFilename}
+	
+	# Content zusammenbauen
+	my $M3UContentWR;
+	my @M3UConntentArray = split /\n+/, $M3UContent;
+	foreach (@M3UConntentArray) { 
+		if (lc(substr($_,0,4)) eq 'http') {
+			$M3UContentWR .= $_ . "\n";
+			Log3 $name, 4, "[$name] [echodevice_SaveOwnMP3] " . $_;
+		}
+	} 
+	
+	# M3U Datei erzeugen
+	open(FH, ">$FW_dir/echodevice/$M3UFilename");
+	print FH $M3UContentWR;
+	close(FH);
+		
+	echodevice_SendCommand($hash,"tunein",ReadingsVal($hash->{IODev}->{NAME} , "POM_TuneIn", "s167655"));
+}
+
+sub echodevice_SaveOwnPlaylist($$) {
+	my ($hash,$M3UContent) = @_;
+	my $name = $hash->{NAME};
+	my $M3UFilename;
+	my $M3UContentWR;
+
+	Log3 $name, 4, "[$name] [echodevice_SaveOwnMP3] M3UContent = " . $M3UContent;
+	Log3 $name, 4, "[$name] [echodevice_SaveOwnMP3] M3UFile= " . $M3UFilename;
+
+	if ($M3UContent eq "") {
+		Log3 $name, 3, "[$name] [echodevice_SaveOwnMP3] no content received";
+		return;
+	}
+
+	# Playlist Name auslesen
+	my @M3UConntentArray = split /\n+/, $M3UContent;
+	$M3UFilename = @M3UConntentArray[0];
+	
+	# Div. Zeichen ersetzen
+	$M3UFilename  =~ s/\s+/_/g;
+	$M3UFilename  =~ s/\W/_/g;
+	$M3UFilename .= ".m3u";
+	
+	Log3 $name, 4, "[$name] [echodevice_SaveOwnMP3] M3UFile= " . $M3UFilename;
+	
+	# Content zusammenbauen
+	foreach (@M3UConntentArray) { 
+		if (lc(substr($_,0,4)) eq 'http') {
+			$M3UContentWR .= $_ . "\n";
+			Log3 $name, 4, "[$name] [echodevice_SaveOwnMP3] " . $_;
+		}
+	} 
+	
+	#Verzeichnis playlists anlegen
+	mkdir($FW_dir . "/echodevice/playlists", 0755) unless(-d $FW_dir . "/echodevice/playlists" );
+	
+	# M3U Datei löschen
+	if ((-e $FW_dir . "/echodevice/playlists/". $M3UFilename)) {unlink $FW_dir . "/echodevice/playlists/".$M3UFilename}
+	
+	# M3U Datei erzeugen
+	open(FH, ">$FW_dir/echodevice/playlists/$M3UFilename");
+	print FH $M3UContentWR;
+	close(FH);
+
+}
+
+sub echodevice_GetOwnPlaylist($) {
+	my ($hash) = @_;
+	my $name = $hash->{NAME};
+	
+	# startownplaylist
+	if (-d $FW_dir . "/echodevice/playlists") {
+
+		my $M3UFiles;
+
+		opendir(DH, $FW_dir . "/echodevice/playlists");
+			my @files = readdir(DH);
+		closedir(DH);
+
+		foreach my $file (@files){
+			# skip . and ..
+			next if($file =~ /^\.$/);
+			next if($file =~ /^\.\.$/);
+			Log3 $name, 4, "[$name] [echodevice_GetOwnPlaylist] found filename = $file";
+			if ($M3UFiles eq "") {
+				$M3UFiles = $file;
+			}
+			else {
+				$M3UFiles .= ",".$file;
+			}
+		}
+		Log3 $name, 4, "[$name] [echodevice_GetOwnPlaylist] return = " . "playownplaylist:" . $M3UFiles ." ";
+		if ($M3UFiles ne "") {
+			return "playownplaylist:" . $M3UFiles ." " . "deleteownplaylist:" . $M3UFiles ." ";  
+		}
+		else {
+			return ;
+		}
+	}
+	
+	else {
+		return;
+	}
+	
 }
 
 1;
