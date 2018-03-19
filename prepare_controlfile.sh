@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+source $HOME/.profile
+
 controls_file="controls_echodevice.txt"
 changed_file="CHANGED"
 
