@@ -5,6 +5,8 @@ source $HOME/.profile
 controls_file="controls_echodevice.txt"
 changed_file="CHANGED"
 
+find . -type f -iname '.DS_Store' -delete
+
 rm ${controls_file}
 find -type f \( -path './FHEM/*' -o -path './www/*' \) -print0 | while IFS= read -r -d '' f;
 do
@@ -17,4 +19,3 @@ rm ${changed_file}
 echo "*** And in this weeks episode at $(basename `git rev-parse --show-toplevel`):" >> ${changed_file}
 git log HEAD --pretty="%h %ad %s" --date=format:"%m.%d.%Y %H:%M" FHEM/ www/ >> ${changed_file}
 
-find . -type f -iname '.DS_Store' -delete
