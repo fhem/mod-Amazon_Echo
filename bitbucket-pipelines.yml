@@ -1,0 +1,6 @@
+pipelines:
+  default:
+    - step:
+        script:
+          - git log HEAD --pretty="%h %ad %s" --date=format:"%m.%d.%Y %H:%M" FHEM/ www/ >> ${changed_file}
+
