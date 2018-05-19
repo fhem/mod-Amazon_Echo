@@ -1,4 +1,8 @@
 DEL ./FHEM/37_echodevice.pm
-UPD 2018-05-15_07:39:03 143885 FHEM/37_echodevice.pm
+UPD 2018-05-19_21:25:57 144369 FHEM/37_echodevice.pm
+DEL ./www/.DS_Store
+UPD 2018-05-19_21:38:45 6148 www/.DS_Store
+DEL ./www/images/.DS_Store
+UPD 2018-05-19_21:38:44 6148 www/images/.DS_Store
 DEL ./www/images/echodevice/echo.svg
-UPD 2018-03-19_12:22:33 24155 www/images/echodevice/echo.svg
+UPD 2018-02-16_21:55:19 24155 www/images/echodevice/echo.svg

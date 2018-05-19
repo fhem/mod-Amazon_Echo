@@ -1,6 +1,12 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
+# 2018.05.17 v0.0.36
+# - CHANGE:  Accept-Language: de,en-US
+#
+# 2018.05.17 v0.0.35
+# - BUGFIX:  Attribut "cookie"
+#
 # 2018.05.07 v0.0.34
 # - BUGFIX:  Attribut "intervalsettings"
 #            ReLogin bei "COOKIE ERROR"
@@ -214,7 +220,7 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.34";
+my $ModulVersion     = "0.0.36";
 my $AWSPythonVersion = "0.0.3";
 
 ##############################################################################
@@ -1485,6 +1491,14 @@ sub echodevice_SendLoginCommand($$$) {
 	my $name = $hash->{NAME};
 	my $SendUrl;
 	my $param;
+	my $HeaderLanguage = "de,en-US";
+	
+	# Überspringen wenn Attr cookie gesetzt ist!
+	if(AttrVal( $name, "cookie", "none" ) ne "none" && $type ne "cookielogin6") {
+		Log3 $name, 3, "[$name] [echodevice_SendLoginCommand] echodevice_FirstStart";
+		echodevice_FirstStart($hash);
+		return;
+	}
 	
 	# Browser User Agent
 	my $UserAgent = AttrVal($name,"browser_useragent","Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:60.0) Gecko/20100101 Firefox/58.0"); 
@@ -1500,7 +1514,7 @@ sub echodevice_SendLoginCommand($$$) {
 		$param->{url} = "https://".$hash->{helper}{SERVER}."/";
 		$param->{method} = "GET";
 		$param->{ignoreredirects} = 1;
-		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: de,en\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1";
+		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: " . $HeaderLanguage . "\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1";
 		$param->{callback} = \&echodevice_Parse;
 		$param->{type} = $type;
 		$param->{hash} = $hash;
@@ -1521,7 +1535,7 @@ sub echodevice_SendLoginCommand($$$) {
 	if ($type eq "cookielogin2" ) {
 		$param->{url} = "https://".$hash->{helper}{SERVER}."/";
 		$param->{method} = "GET";
-		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: de,en\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1";
+		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: " . $HeaderLanguage . "\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1";
 		$param->{callback} = \&echodevice_Parse;
 		$param->{type} = $type;
 		$param->{hash} = $hash;
@@ -1537,7 +1551,7 @@ sub echodevice_SendLoginCommand($$$) {
 	
 		$param->{url} = "https://www.amazon.de/ap/signin";
 		$param->{method} = "POST";
-		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: de,en\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nReferer: $location\r\nCookie: $cookiestring";
+		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: " . $HeaderLanguage . "\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nReferer: $location\r\nCookie: $cookiestring";
 		$param->{callback} = \&echodevice_Parse;
 		$param->{data} = $postdata;
 		$param->{type} = $type;
@@ -1555,7 +1569,7 @@ sub echodevice_SendLoginCommand($$$) {
 	
 		$param->{url}    = "https://www.amazon.de/ap/signin";
 		$param->{method} = "POST";
-		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: de,en\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nReferer: https://www.amazon.de/ap/signin/$sessionid\r\nCookie: $cookiestring";
+		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: " . $HeaderLanguage . "\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nReferer: https://www.amazon.de/ap/signin/$sessionid\r\nCookie: $cookiestring";
 		$param->{callback} = \&echodevice_Parse;
 
 		if ($hash->{helper}{TWOFA} eq "") {
@@ -1581,7 +1595,7 @@ sub echodevice_SendLoginCommand($$$) {
 		my $cookiestring = $hash->{helper}{".login_cookiestring"};
 	
 		$param->{url}    = "https://".$hash->{helper}{SERVER}."/api/bootstrap?version=0&_=".int(time);
-		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: de,en\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nReferer: https://".$hash->{helper}{SERVER}."/spa/index.html\r\nOrigin: https://".$hash->{helper}{SERVER}."\r\nCookie: $cookiestring";
+		$param->{header} = "User-Agent: ".$UserAgent."\r\nAccept-Language: " . $HeaderLanguage . "\r\nDNT: 1\r\nConnection: keep-alive\r\nUpgrade-Insecure-Requests: 1\r\nReferer: https://".$hash->{helper}{SERVER}."/spa/index.html\r\nOrigin: https://".$hash->{helper}{SERVER}."\r\nCookie: $cookiestring";
 		$param->{callback} = \&echodevice_Parse;
 		$param->{type}   = $type;
 		$param->{hash}   = $hash;
@@ -2891,9 +2905,9 @@ sub echodevice_FirstStart($) {
 	readingsSingleUpdate ($hash, "version", $ModulVersion ,0);
 	readingsSingleUpdate ($hash, "autocreate_devices", "stop", 0 );
 	
-	if(AttrVal( $name, "timeout", "none" ) ne "none") {
+	if(AttrVal( $name, "cookie", "none" ) ne "none") {
 		readingsSingleUpdate ($hash, "COOKIE_TYPE", "ATTRIBUTE" ,0);
-		$hash->{helper}{".COOKIE"} = AttrVal( $name, "timeout", "none" );
+		$hash->{helper}{".COOKIE"} = AttrVal( $name, "cookie", "none" );
 		$hash->{helper}{".COOKIE"} =~ s/Cookie: //g;
 		$hash->{helper}{".COOKIE"} =~ /csrf=([-\w]+)[;\s]?(.*)?$/;
 		$hash->{helper}{".CSRF"} = $1;
@@ -2920,8 +2934,7 @@ sub echodevice_FirstStart($) {
 		echodevice_SendCommand($hash,"devices","");
 		echodevice_SendCommand($hash,"account","");
 	}
-	
-	    
+
 	# Alte Readingsbereinigen
 	readingsDelete($hash, "COOKIE");
 	
