@@ -1,6 +1,10 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
+# 2018.05.30 v0.0.37
+# - BUGFIX:  ReLogin bei "COOKIE ERROR"
+# - FEATURE: Neues Attribut "browser_language"
+#
 # 2018.05.17 v0.0.36
 # - CHANGE:  Accept-Language: de,en-US
 #
@@ -220,7 +224,7 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.36";
+my $ModulVersion     = "0.0.37";
 my $AWSPythonVersion = "0.0.3";
 
 ##############################################################################
@@ -249,6 +253,7 @@ sub echodevice_Initialize($) {
 							"tunein_default ".
 							"autocreate_refresh:0,1 ".
 							"browser_useragent ".
+							"browser_language ".
 							"browser_useragent_random:0,1 ".
 							$readingFnAttributes;
 }
@@ -1491,7 +1496,7 @@ sub echodevice_SendLoginCommand($$$) {
 	my $name = $hash->{NAME};
 	my $SendUrl;
 	my $param;
-	my $HeaderLanguage = "de,en-US";
+	my $HeaderLanguage = AttrVal($name,"browser_language","de,en-US");# "de,en-US";
 	
 	# Überspringen wenn Attr cookie gesetzt ist!
 	if(AttrVal( $name, "cookie", "none" ) ne "none" && $type ne "cookielogin6") {
@@ -1508,6 +1513,7 @@ sub echodevice_SendLoginCommand($$$) {
 	}
 
 	readingsSingleUpdate ($hash, "BrowserUserAgent", $UserAgent ,0);
+	readingsSingleUpdate ($hash, "BrowserLanguage", $HeaderLanguage ,0);
 	
 	# COOKIE LOGIN
 	if ($type eq "cookielogin1" ) {
@@ -1738,7 +1744,7 @@ sub echodevice_Parse($$$) {
 		$hash->{helper}{".login_cookiestring"}.= $cookiestring4;
 		
 		if($cookiestring =~ /doctype html/) {
-			RemoveInternalTimer($hash);
+			#RemoveInternalTimer($hash);
 			Log3 $name, 4, "[$name] [echodevice_Parse] [$msgtype] Login failed";
 			readingsBeginUpdate($hash);
 			readingsBulkUpdateIfChanged($hash, "state", "unauthorized", 1);
@@ -1776,7 +1782,7 @@ sub echodevice_Parse($$$) {
 	}
     
 	if($data =~ /doctype html/ || $data =~ /cookie is missing/){
-		RemoveInternalTimer($hash);
+		#RemoveInternalTimer($hash);
 		Log3 $name, 4, "[$name] [echodevice_Parse] [$msgtype] Invalid cookie";
 		readingsBeginUpdate($hash);
 		readingsBulkUpdateIfChanged($hash, "state", "unauthorized", 1);
@@ -1902,7 +1908,7 @@ sub echodevice_Parse($$$) {
 
 	if($@) {
 		if($data =~ /doctype html/ || $data =~ /cookie is missing/){
-			RemoveInternalTimer($hash);
+			#RemoveInternalTimer($hash);
 			Log3 $name, 4, "[$name] [echodevice_Parse] [$msgtype] Invalid cookie";
 			readingsBeginUpdate($hash);
 			readingsBulkUpdateIfChanged($hash, "state", "unauthorized", 1);
@@ -2813,6 +2819,13 @@ sub echodevice_GetSettings($) {
 	my $ConnectState = "";
 	
 	return if($hash->{model} eq "unbekannt");
+
+	# ECHO Device disable
+	if (AttrVal($name,"disable",0) == 1) {
+		RemoveInternalTimer($hash, "echodevice_GetSettings");
+		InternalTimer(gettimeofday() + $nextupdate, "echodevice_GetSettings", $hash, 0);
+		return;
+	}
 	
 	# ECHO am Account registrierern
 	if($hash->{model} ne "ACCOUNT") {
@@ -2823,7 +2836,9 @@ sub echodevice_GetSettings($) {
 
 	if($hash->{model} eq "ACCOUNT") {$ConnectState = $hash->{STATE}} else {$ConnectState = $hash->{IODev}->{STATE}}
 	
-	if ($ConnectState eq "connected" && AttrVal($name,"disable",0) == 0) {
+	Log3 $name, 5, "[$name] [echodevice_GetSettings] ping!"  ;
+	
+	if ($ConnectState eq "connected") {
 
 		if($hash->{model} eq "ACCOUNT") {
 			echodevice_SendCommand($hash,"getnotifications","");
@@ -2878,21 +2893,29 @@ sub echodevice_GetSettings($) {
 		
 		Log3( $name, 4, "[$name] [echodevice_GetSettings] Timer INTERVAL = " . $nextupdate);	
 	}
-	elsif ($hash->{model} eq "ACCOUNT" && AttrVal($name,"disable",0) == 0 && $ConnectState eq "COOKIE ERROR") {
+	elsif ($hash->{model} eq "ACCOUNT" && $ConnectState eq "COOKIE ERROR") {
 		Log3 $name, 3, "[$name] [echodevice_GetSettings] COOKIE ERROR / Generate new COOKIE!" ;
 		echodevice_SendLoginCommand($hash,"cookielogin1","");
 	}
-	elsif ($hash->{model} eq "ACCOUNT" && AttrVal($name,"disable",0) == 0 && $ConnectState eq "LOGIN ERROR") {
+	elsif ($hash->{model} eq "ACCOUNT" && $ConnectState eq "LOGIN ERROR") {
 		Log3 $name, 3, "[$name] [echodevice_GetSettings] LOGIN ERROR / Generate new COOKIE!" ;
 		echodevice_SendLoginCommand($hash,"cookielogin1","");
 	}
-	elsif ($hash->{model} eq "ACCOUNT" && AttrVal($name,"disable",0) == 0 && $ConnectState eq "connection error") {
+	elsif ($hash->{model} eq "ACCOUNT" && $ConnectState eq "connection error") {
 		Log3 $name, 3, "[$name] [echodevice_GetSettings] LOGIN ERROR / Generate new COOKIE!" ;
 		echodevice_SendLoginCommand($hash,"cookielogin1","");
 	}
+	elsif ($hash->{model} eq "ACCOUNT" && $ConnectState eq "disconnected") {
+		Log3 $name, 3, "[$name] [echodevice_GetSettings] disconnected / Generate new COOKIE!" ;
+		echodevice_SendLoginCommand($hash,"cookielogin1","");
+	}
+	else {
+		Log3 $name, 5, "[$name] [echodevice_GetSettings] unknown stat / ConnectState=$ConnectState" ;
+	}
+	
 	RemoveInternalTimer($hash, "echodevice_GetSettings");
 	InternalTimer(gettimeofday() + $nextupdate, "echodevice_GetSettings", $hash, 0);
-	return undef;
+	return;
 }
 
 ##########################
