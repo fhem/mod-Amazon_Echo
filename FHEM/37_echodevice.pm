@@ -1,6 +1,13 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
+# 2018.06.08 v0.0.39
+# - BUGFIX:  get html_results
+#
+# 2018.06.07 v0.0.38
+# - FEATURE: Anzeigen der Amaton Login Ergebnisse (get html_results)
+#            Attribut "browser_save_data"
+#
 # 2018.05.30 v0.0.37
 # - BUGFIX:  ReLogin bei "COOKIE ERROR"
 # - FEATURE: Neues Attribut "browser_language"
@@ -224,7 +231,7 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.37";
+my $ModulVersion     = "0.0.39";
 my $AWSPythonVersion = "0.0.3";
 
 ##############################################################################
@@ -254,6 +261,7 @@ sub echodevice_Initialize($) {
 							"autocreate_refresh:0,1 ".
 							"browser_useragent ".
 							"browser_language ".
+							"browser_save_data:0,1 ".
 							"browser_useragent_random:0,1 ".
 							$readingFnAttributes;
 }
@@ -370,7 +378,7 @@ sub echodevice_Get($@) {
 		$usage .= "help:noArg  " ;
 	}
 	elsif ($hash->{model} eq "ACCOUNT") {
-		$usage .= "settings:noArg devices:noArg actions:noArg tracks:noArg help:noArg conversations:noArg ";
+		$usage .= "settings:noArg devices:noArg actions:noArg tracks:noArg help:noArg conversations:noArg html_results:noArg ";
 	}
 	else {
 		$usage .= "tunein settings:noArg primeplayeigene_albums primeplayeigene_tracks primeplayeigene_artists primeplayeigeneplaylist:noArg help:noArg ";
@@ -390,7 +398,78 @@ sub echodevice_Get($@) {
 	my $ConnectState = "";
 	if($hash->{model} eq "ACCOUNT") {$ConnectState = $hash->{STATE}} else {$ConnectState = $hash->{IODev}->{STATE}}
 	
-	if ($ConnectState ne "connected" && $command ne "help") {
+	if($command eq "help") {
+
+		my $return = '<html><table align="" border="0" cellspacing="0" cellpadding="3" width="100%" height="100%" class="mceEditable"><tbody>';
+		$return   .= "<p><strong>Hilfe:</strong></p>";
+		$return   .= "<tr><td><strong>Dokumentation Modul&nbsp;&nbsp;&nbsp</strong></td><td><strong></strong></td></tr>";			
+		$return .= "<tr><td>"."Beschreibung"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice</td></tr>";
+		$return .= "<tr><td>"."Readings"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Readings' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Readings</td></tr>";
+		$return .= "<tr><td>"."Attribute"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Attribute' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Attribute</td></tr>";
+		$return .= "<tr><td>"."Set"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Set' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Set</td></tr>";
+		$return .= "<tr><td>"."Get"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Get' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Get</td></tr>";
+		$return .= "<tr><td>"."Medieninformationen ermitteln"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Medieninformationen_ermitteln' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Medieninformationen_ermitteln</td></tr>";
+		$return .= "<tr><td>"."Cookie_ermitteln"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Cookie_ermitteln' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Cookie_ermitteln</td></tr>";
+		$return .= "<tr><td>"."MP3 Playlisten"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#MP3_Playlisten' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#MP3_Playlisten</td></tr>";
+		$return .= "<tr><td>"."Amazon Stimmen"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#AWS_Konfiguration' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#AWS_Konfiguration</td></tr>";
+		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
+
+		$return .= "<tr><td><strong>Diverse Anleitungen</strong></td><td></td></tr>";
+		$return .= "<tr><td></td><td></td></tr>";
+		$return .= "<tr><td>"."Amazon ECHO TTS/POM"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/amazon-echo-tts-mp3s' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/amazon-echo-tts-mp3s</td></tr>";
+		$return .= "<tr><td>"."MPD Streamserver"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-streamserver' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-streamserver</td></tr>";
+		$return .= "<tr><td>"."MPD Web Frontend"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-webfrontend' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-webfrontend</td></tr>";
+		$return .= "<tr><td>"."IceCast2"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/icecast2' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/icecast2</td></tr>";
+		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
+		
+		$return .= "<tr><td><strong>Forum</strong></td><td></td></tr>";
+		$return .= "<tr><td></td><td></td></tr>";
+		$return .= "<tr><td>"."Forums Thread"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://forum.fhem.de/index.php/topic,82631.0.html' .'"'. "</a>https://forum.fhem.de/index.php/topic,82631.0.html</td></tr>";
+		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
+		
+		$return .= "</tbody></table></html>";
+
+		return $return;		
+	}
+	
+	if($command eq "html_results") {
+
+		my $timestamp ;
+		my $epoch_timestamp ;
+		my $return = '<html><table align="" border="0" cellspacing="0" cellpadding="3" width="100%" height="100%" class="mceEditable"><tbody>';
+		$return   .= "<p><strong>Amazon HTML Results:</strong></p>";
+		$return   .= "<tr><td><strong>Datum&nbsp;&nbsp;&nbsp</strong></td><td><strong>HTML Result Dateiname</strong></td></tr>";
+
+		opendir(DH, $FW_dir . "/echodevice/results");
+			my @files = readdir(DH);
+		closedir(DH);
+
+		my @filessorted = sort @files;
+		
+		foreach my $file (@filessorted){
+			# skip . and ..
+			next if($file =~ /^\.$/);
+			next if($file =~ /^\.\.$/);
+
+			# Datum
+			$epoch_timestamp = 0 ;
+			$timestamp       = 0 ;
+			if ((-e $FW_dir . "/echodevice/results/" . $file)) {
+				$epoch_timestamp = (stat($FW_dir . "/echodevice/results/" . $file))[9];
+				$timestamp       = localtime($epoch_timestamp);
+			}
+			
+			# $file is the file used on this iteration of the loop
+			$return .= "<tr><td>".$timestamp."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . $FW_ME . '/echodevice/results/' . $file .'"'. "</a>" . $file . "</td></tr>";
+		}
+		
+		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
+		$return .= "</tbody></table></html>";
+
+		return $return;		
+	}
+	
+	if ($ConnectState ne "connected") {
 		return "$name is not connected. Aborting...";
 	}
 
@@ -429,39 +508,7 @@ sub echodevice_Get($@) {
 	elsif($command eq "primeplayeigeneplaylist") {
 		echodevice_SendCommand($hash,"getprimeplayeigeneplaylist","");
 	}	
-	elsif($command eq "help") {
 
-		my $return = '<html><table align="" border="0" cellspacing="0" cellpadding="3" width="100%" height="100%" class="mceEditable"><tbody>';
-		$return   .= "<p><strong>Hilfe:</strong></p>";
-		$return   .= "<tr><td><strong>Dokumentation Modul&nbsp;&nbsp;&nbsp</strong></td><td><strong></strong></td></tr>";			
-		$return .= "<tr><td>"."Beschreibung"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice</td></tr>";
-		$return .= "<tr><td>"."Readings"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Readings' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Readings</td></tr>";
-		$return .= "<tr><td>"."Attribute"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Attribute' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Attribute</td></tr>";
-		$return .= "<tr><td>"."Set"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Set' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Set</td></tr>";
-		$return .= "<tr><td>"."Get"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Get' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Get</td></tr>";
-		$return .= "<tr><td>"."Medieninformationen ermitteln"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Medieninformationen_ermitteln' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Medieninformationen_ermitteln</td></tr>";
-		$return .= "<tr><td>"."Cookie_ermitteln"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Cookie_ermitteln' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#Cookie_ermitteln</td></tr>";
-		$return .= "<tr><td>"."MP3 Playlisten"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#MP3_Playlisten' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#MP3_Playlisten</td></tr>";
-		$return .= "<tr><td>"."Amazon Stimmen"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#AWS_Konfiguration' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/eigene-module/echodevice/#AWS_Konfiguration</td></tr>";
-		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
-
-		$return .= "<tr><td><strong>Diverse Anleitungen</strong></td><td></td></tr>";
-		$return .= "<tr><td></td><td></td></tr>";
-		$return .= "<tr><td>"."Amazon ECHO TTS/POM"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/amazon-echo-tts-mp3s' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/amazon-echo-tts-mp3s</td></tr>";
-		$return .= "<tr><td>"."MPD Streamserver"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-streamserver' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-streamserver</td></tr>";
-		$return .= "<tr><td>"."MPD Web Frontend"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-webfrontend' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-webfrontend</td></tr>";
-		$return .= "<tr><td>"."IceCast2"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/icecast2' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/icecast2</td></tr>";
-		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
-		
-		$return .= "<tr><td><strong>Forum</strong></td><td></td></tr>";
-		$return .= "<tr><td></td><td></td></tr>";
-		$return .= "<tr><td>"."Forums Thread"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://forum.fhem.de/index.php/topic,82631.0.html' .'"'. "</a>https://forum.fhem.de/index.php/topic,82631.0.html</td></tr>";
-		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
-		
-		$return .= "</tbody></table></html>";
-
-		return $return;
-	}	
 	
   return undef;
 }
@@ -1633,6 +1680,32 @@ sub echodevice_Parse($$$) {
 	Log3 $name, 5, "[$name] [echodevice_Parse] [$msgtype] DATA Dumper=" . Dumper(echodevice_anonymize($hash, $data));
 
 	$hash->{helper}{RUNNING_REQUEST} = 0;
+	
+	# HTML Informationen mit schreiben
+	if (AttrVal($name,"browser_save_data",0) == 1) {
+
+		#Verzeichnis echodevice anlegen
+		mkdir($FW_dir . "/echodevice", 0777) unless(-d $FW_dir . "/echodevice" );
+		mkdir($FW_dir . "/echodevice/results", 0777) unless(-d $FW_dir . "/echodevice/results" );
+		
+		# Eventuell vorhandene Datei löschen
+		my $HTMLFilename   = $name . "_" . $msgtype . ".html";
+		my $HeaderFilename = $name . "_" . $msgtype . "_header.html";
+		if ((-e $FW_dir . "/echodevice/results/". $HTMLFilename))   {unlink $FW_dir . "/echodevice/results/".$HTMLFilename}
+		if ((-e $FW_dir . "/echodevice/results/". $HeaderFilename)) {unlink $FW_dir . "/echodevice/results/".$HeaderFilename}
+	
+		# Datei anlegen	
+		open(FH, ">$FW_dir/echodevice/results/$HTMLFilename");
+		print FH $data;
+		close(FH);
+
+		# Datei anlegen	
+		open(FH, ">$FW_dir/echodevice/results/$HeaderFilename");
+		print FH $param->{httpheader};
+		close(FH);
+
+		
+	}
 	
 	# COOKIE LOGIN Part
 	if($msgtype eq "cookielogin1") {
