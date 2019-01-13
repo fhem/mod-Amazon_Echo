@@ -1,8 +1,13 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
-# 2019.01.11 v0.0.51
+# 2019.01.13 v0.0.51h
+# - BUGFIX:  NPM Proxy IP Adresse / Port usw.
 # - FEATURE: Unterstützung AppRegisterLogin per NPM
+#            Unterstützung A10L5JEZTKKCZ8 VOBOT
+#            set speak_ssml https://docs.aws.amazon.com/polly/latest/dg/supported-ssml.html
+#            https://developer.amazon.com/de/docs/custom-skills/speech-synthesis-markup-language-ssml-reference.html
+#            get status - Statusinformationen zum Modul
 # - CHANGE:  https://forum.fhem.de/index.php/topic,82631.msg869460.html#msg869460
 #
 # 2018.12.02 v0.0.50
@@ -28,7 +33,7 @@
 #            Unterstützung A3HF4YRA2L7XGC Fire TV Cube
 #            Unterstützung ADVBD696BHNV5  Fire TV Stick V1
 #            Unterstützung A2LWARUGJLBYEW Fire TV Stick V2
-#            Unterstützung AP1F6KUH00XPV ECHO Stereopaar
+#            Unterstützung AP1F6KUH00XPV  ECHO Stereopaar
 #
 # 2018.10.25 v0.0.47
 # - FEATURE: Unterstützung neuer Sonos Beam A15ERDAKK5HQQG
@@ -309,7 +314,7 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.51";
+my $ModulVersion     = "0.0.51h";
 my $AWSPythonVersion = "0.0.3";
 
 ##############################################################################
@@ -345,7 +350,6 @@ sub echodevice_Initialize($) {
 							"browser_useragent_random:0,1 ".
 							"npm_proxy_port ".
 							"npm_proxy_ip ".
-							"npm_login:0,1 ".
 							"npm_refresh_intervall ".
 							"npm_bin ".
 							"npm_bin_node ".
@@ -466,7 +470,7 @@ sub echodevice_Get($@) {
 		$usage .= "help:noArg  " ;
 	}
 	elsif ($hash->{model} eq "ACCOUNT") {
-		$usage .= "settings:noArg devices:noArg actions:noArg tracks:noArg help:noArg conversations:noArg html_results:noArg address";
+		$usage .= "settings:noArg devices:noArg actions:noArg tracks:noArg help:noArg conversations:noArg html_results:noArg address status:noArg";
 	}
 	else {
 		$usage .= "tunein settings:noArg primeplayeigene_albums primeplayeigene_tracks primeplayeigene_artists primeplayeigeneplaylist:noArg help:noArg html_results:noArg ";
@@ -475,7 +479,7 @@ sub echodevice_Get($@) {
 	#return "no get" if ($hash->{model} eq "Echo Multiroom");
 	return $usage if $command eq '?';
 	
-	if ($command ne "help" || $command ne "help_results") {
+	if ($command ne "help" || $command ne "help_results" || $command ne "status") {
 	}
 	elsif (IsDisabled($name)) {
 		$hash->{STATE} = "disabled";
@@ -611,7 +615,52 @@ sub echodevice_Get($@) {
 
 	elsif($command eq "address") {
 		echodevice_SendCommand($hash,"address",$parameter);
-	}	
+	}
+
+	elsif($command eq "status") {
+		
+		my $return = '<html>';
+		
+		#Allgemeine Informationen
+		$return .= '<table align="" border="0" cellspacing="0" cellpadding="3" width="100%" height="100%" class="mceEditable"><tbody>';
+		$return .= "<p><strong>Modul Infos:</strong></p>";
+		$return .= "<tr><td><strong>Beschreigung&nbsp;&nbsp;&nbsp</strong></td><td><strong>Bereich&nbsp;&nbsp;&nbsp</strong></td><td><strong>Wert</strong></td></tr>";
+		$return .= "<tr><td>Version&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "version", "unbekannt") . "</td></tr>";
+		$return .= "<tr><td>COOKIE_STATE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_STATE", "unbekannt") . "</td></tr>";
+		$return .= "<tr><td>COOKIE_TYPE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_TYPE", "unbekannt") . "</td></tr>";
+		$return .= "<tr><td>amazon_refreshtoken&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "amazon_refreshtoken", "unbekannt") . "</td></tr>";
+		#$return .= "<tr><td>.COOKIE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>123</td></tr>";
+		
+		# Attribute auslesen
+		while ( my ($key, $value) = each %{$attr{$name}} ) {
+			$return .= "<tr><td>" . $key . "&nbsp;&nbsp;&nbsp;</td><td>Attribut</td><td>" . $value . "</td></tr>";
+		}
+		
+		$return .= "<tr><td>&nbsp</td><td>&nbsp</td><td> </td></tr></tbody></table>";
+		
+		#Allgemeine Cookie Infos
+		$return .= '<table align="" border="0" cellspacing="0" cellpadding="3" width="100%" height="100%" class="mceEditable"><tbody>';
+		$return .= "<p><strong>Amazon Cookie:</strong></p>";
+		$return .= "<tr><td><strong>Beschreigung&nbsp;&nbsp;&nbsp</strong></td><td><strong>Bereich&nbsp;&nbsp;&nbsp</strong></td><td><strong>Wert</strong></td></tr>";
+		$return .= "<tr><td>.COOKIE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . substr(ReadingsVal( $name, ".COOKIE", "unbekannt" ), 0, 20) . "....</td></tr>";
+		$return .= "<tr><td>COOKIE_STATE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_STATE", "unbekannt") . "</td></tr>";
+		$return .= "<tr><td>COOKIE_TYPE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_TYPE", "unbekannt") . "</td></tr>";
+		$return .= "<tr><td>amazon_refreshtoken&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "amazon_refreshtoken", "unbekannt") . "</td></tr>";
+		$return .= "<tr><td>.COOKIE&nbsp;&nbsp;&nbsp;</td><td>Helper</td><td>"   . substr($hash->{helper}{".COOKIE"}, 0, 20) . "....</td></tr>";
+		$return .= "<tr><td>.COMMSID&nbsp;&nbsp;&nbsp;</td><td>Helper</td><td>"  . substr($hash->{helper}{".COMMSID"}, 0, 20) . "....</td></tr>";
+		$return .= "<tr><td>.CSRF&nbsp;&nbsp;&nbsp;</td><td>Helper</td><td>"     . substr($hash->{helper}{".CSRF"}, 0, 3) . "....</td></tr>";
+		$return .= "<tr><td>.DIRECTID&nbsp;&nbsp;&nbsp;</td><td>Helper</td><td>" . substr($hash->{helper}{".DIRECTID"}, 0, 20) . "....</td></tr>";
+		$return .= "<tr><td>RUNLOGIN&nbsp;&nbsp;&nbsp;</td><td>Helper</td><td>"  . $hash->{helper}{"RUNLOGIN"} . "</td></tr>";
+		$return .= "<tr><td>RUNNING_REQUEST&nbsp;&nbsp;&nbsp;</td><td>Helper</td><td>"  . $hash->{helper}{"RUNNING_REQUEST"} . "</td></tr>";
+		$return .= "<tr><td>RUNLOGIN&nbsp;&nbsp;&nbsp;</td><td>Helper</td><td>"  . $hash->{helper}{"RUNLOGIN"} . "</td></tr>";
+		$return .= "<tr><td>RUNLOGIN&nbsp;&nbsp;&nbsp;</td><td>Helper</td><td>"  . $hash->{helper}{"RUNLOGIN"} . "</td></tr>";
+		$return .= "<tr><td>&nbsp</td><td>&nbsp</td><td> </td></tr></tbody></table>";
+		
+		$return .= "</html>";
+
+		return $return;	
+		
+	}
 	
   return undef;
 }
@@ -667,7 +716,7 @@ sub echodevice_Set($@) {
 		}
 		else {
 			$usage .= 'volume:slider,0,1,100 play:noArg pause:noArg next:noArg previous:noArg forward:noArg rewind:noArg shuffle:on,off repeat:on,off dnd:on,off volume_alarm:slider,0,1,100 ';
-			$usage .= 'info:Beliebig_Auf_Wiedersehen,Beliebig_Bestaetigung,Beliebig_Geburtstag,Beliebig_Guten_Morgen,Beliebig_Gute_Nacht,Beliebig_Ich_Bin_Zuhause,Beliebig_Kompliment,Erzaehle_Geschichte,Erzaehle_Was_Neues,Erzaehle_Witz,Kalender_Heute,Kalender_Morgen,Kalender_Naechstes_Ereignis,Nachrichten,Singe_Song,Verkehr,Wetter tunein primeplaylist primeplaysender primeplayeigene primeplayeigeneplaylist alarm_normal alarm_repeat reminder_normal reminder_repeat speak tts tts_translate:textField-long playownmusic:textField-long saveownplaylist:textField-long ';
+			$usage .= 'info:Beliebig_Auf_Wiedersehen,Beliebig_Bestaetigung,Beliebig_Geburtstag,Beliebig_Guten_Morgen,Beliebig_Gute_Nacht,Beliebig_Ich_Bin_Zuhause,Beliebig_Kompliment,Erzaehle_Geschichte,Erzaehle_Was_Neues,Erzaehle_Witz,Kalender_Heute,Kalender_Morgen,Kalender_Naechstes_Ereignis,Nachrichten,Singe_Song,Verkehr,Wetter tunein primeplaylist primeplaysender primeplayeigene primeplayeigeneplaylist alarm_normal alarm_repeat reminder_normal reminder_repeat speak speak_ssml tts tts_translate:textField-long playownmusic:textField-long saveownplaylist:textField-long ';
 			
 			# startownplaylist
 			$usage .= echodevice_GetOwnPlaylist($hash);
@@ -1375,6 +1424,11 @@ sub echodevice_Set($@) {
 		echodevice_SendCommand($hash,$command,join(' ',@a));
 	}
 
+	elsif($command eq "speak_ssml"){
+		return "No argument given." if ( !defined($a[0]) );
+		echodevice_SendCommand($hash,$command,join(' ',@a));
+	}
+	
 	elsif($command eq "info"){
 		return "No argument given." if ( !defined($a[0]) );
 		echodevice_SendCommand($hash,$command,join(' ',@a));
@@ -1863,6 +1917,25 @@ sub echodevice_SendCommand($$$) {
 	
 		$SendDataL  = $SendData;
 	}
+
+	elsif ($type eq "speak_ssml") {
+	
+		#Allgemeine Veariablen
+		$SendUrl   .= "/api/behaviors/preview";
+		$SendMetode = "POST";	
+	
+		my $sequenceJson;
+	
+		if(AttrVal($name,"speak_volume",0) > 0){
+			$SendData = '{"behaviorId":"PREVIEW","sequenceJson":"{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.SerialNode\",\"nodesToExecute\":[{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.AttrVal($name , "speak_volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"AlexaAnnouncement\",\"operationPayload\":{\"expireAfter\":\"PT5S\",\"content\":[{\"locale\":\"\",\"display\":{\"title\":\"FHEM\",\"body\":\"Speak\"},\"speak\":{\"type\":\"ssml\",\"value\":\"' . $SendData . '\"}}],\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"target\":{\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"devices\":[{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"deviceTypeId\":\"' . $hash->{helper}{DEVICETYPE} . '\"}]}}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.ReadingsVal($name , "volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}}]}}","status":"ENABLED"}'
+			
+		}
+		else {
+			$SendData = '{"behaviorId": "PREVIEW","sequenceJson": "{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"AlexaAnnouncement\",\"operationPayload\":{\"expireAfter\":\"PT5S\",\"content\":[{\"locale\":\"\",\"display\":{\"title\":\"FHEM\",\"body\":\"Speak\"},\"speak\":{\"type\":\"ssml\",\"value\":\"' . $SendData . '\"}}],\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"target\":{\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"devices\":[{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"deviceTypeId\":\"' . $hash->{helper}{DEVICETYPE} . '\"}]}}}}","status": "ENABLED"}';
+		}
+	
+		$SendDataL  = $SendData;
+	}
 	
 	else {
 		return;
@@ -1943,7 +2016,7 @@ sub echodevice_HandleCmdQueue($) {
 		my $type = $hash->{helper}{".HTTP_CONNECTION"}{type};
         
         $hash->{helper}{RUNNING_REQUEST} = 1;
-        Log3 $name, 4, "[$name] [echodevice_HandleCmdQueue] [$type] send command=" .echodevice_anonymize($hash, $hash->{helper}{".HTTP_CONNECTION"}{url});
+        Log3 $name, 4, "[$name] [echodevice_HandleCmdQueue] [$type] send command=" .echodevice_anonymize($hash, $hash->{helper}{".HTTP_CONNECTION"}{url}). " Metode=" . $hash->{helper}{".HTTP_CONNECTION"}{method};
         HttpUtils_NonblockingGet($hash->{helper}{".HTTP_CONNECTION"});
 		
     }
@@ -3234,7 +3307,7 @@ sub echodevice_Parse($$$) {
 				#next if($device->{deviceFamily} eq "FIRE_TV");
 				#next if($device->{deviceFamily} =~ /AMAZON/);
 				$isautocreated = 0;
-				if($autocreate && ($device->{deviceFamily} eq "FIRE_TV" || $device->{deviceFamily} eq "TABLET" || $device->{deviceFamily} eq "ECHO" || $device->{deviceFamily} eq "KNIGHT" || $device->{deviceFamily} eq "THIRD_PARTY_AVS_MEDIA_DISPLAY"  || $device->{deviceFamily} eq "WHA" || $device->{deviceFamily} eq "ROOK" )) {
+				if($autocreate && ($device->{deviceFamily} eq "UNKNOWN" || $device->{deviceFamily} eq "FIRE_TV" || $device->{deviceFamily} eq "TABLET" || $device->{deviceFamily} eq "ECHO" || $device->{deviceFamily} eq "KNIGHT" || $device->{deviceFamily} eq "THIRD_PARTY_AVS_MEDIA_DISPLAY"  || $device->{deviceFamily} eq "WHA" || $device->{deviceFamily} eq "ROOK" )) {
 					if( defined($modules{$hash->{TYPE}}{defptr}{"$device->{serialNumber}"}) ) {
 						Log3 $name, 4, "[$name] [echodevice_Parse] device '$device->{serialNumber}' already defined";
 						if (AttrVal($name, "autocreate_refresh", 0) == 1) {
@@ -3686,11 +3759,25 @@ sub echodevice_FirstStart($) {
 		readingsSingleUpdate ($hash, ".COOKIE", $hash->{helper}{".COOKIE"} ,0); # Cookie als READING festhalten!
     }
 	elsif (ReadingsVal( $name, ".COOKIE", "none" ) ne "none") {
-		readingsSingleUpdate ($hash, "COOKIE_TYPE", "READING" ,0);
+
 		$hash->{helper}{".COOKIE"} = ReadingsVal( $name, ".COOKIE", "none" );
-		$hash->{helper}{".COOKIE"} =~ s/Cookie: //g;
-		$hash->{helper}{".COOKIE"} =~ /csrf=([-\w]+)[;\s]?(.*)?$/;
-		$hash->{helper}{".CSRF"} = $1;
+
+		# Prüfen ob es sich um ein NPM Login handelt
+		if (index($hash->{helper}{".COOKIE"}, "{") != -1) { 
+			# NPM Login erkannt
+			readingsSingleUpdate ($hash, "COOKIE_TYPE", "READING_NPM" ,0);
+			$hash->{helper}{".COOKIE"} =~ /"localCookie":".*session-id=(.*)","?/;
+			$hash->{helper}{".COOKIE"} = "session-id=" . $1;
+			$hash->{helper}{".COOKIE"} =~ /csrf=([-\w]+)[;\s]?(.*)?$/ if(defined($hash->{helper}{".COOKIE"}));
+			$hash->{helper}{".CSRF"}   = $1  if(defined($hash->{helper}{".COOKIE"}));
+		}
+		else  {
+			# OLD Style
+			readingsSingleUpdate ($hash, "COOKIE_TYPE", "READING" ,0);
+			$hash->{helper}{".COOKIE"} =~ s/Cookie: //g;
+			$hash->{helper}{".COOKIE"} =~ /csrf=([-\w]+)[;\s]?(.*)?$/;
+			$hash->{helper}{".CSRF"} = $1;
+		}
 	}
 	else {
 		readingsSingleUpdate ($hash, "COOKIE_TYPE", "NEW" ,0);
@@ -3756,7 +3843,7 @@ sub echodevice_LoginStart($) {
 			echodevice_SendLoginCommand($hash,"cookielogin6","");
 		}
 		else {
-			if (AttrVal($name,"npm_login",0) == 1) { 
+			if (index(ReadingsVal($name , ".COOKIE", "0"), "{") != -1) { 
 				# Refresh COOKIE
 				if (ReadingsAge($name,'.COOKIE',0) > $npm_refresh_intervall) {
 					Log3 $name, 3, "[$name] [echodevice_LoginStart] Alter COOKIE=" . ReadingsAge($name,'.COOKIE',0) ."/$npm_refresh_intervall Refresh Cookie!";
@@ -3911,6 +3998,7 @@ sub echodevice_getModel($){
 	elsif($ModelNumber eq "A3HF4YRA2L7XGC" || $ModelNumber eq "Fire TV Cube")    {return "Fire TV Cube";}
 	elsif($ModelNumber eq "ADVBD696BHNV5"  || $ModelNumber eq "Fire TV Stick V1"){return "Fire TV Stick V1";}
 	elsif($ModelNumber eq "A2LWARUGJLBYEW" || $ModelNumber eq "Fire TV Stick V2"){return "Fire TV Stick V2";}
+	elsif($ModelNumber eq "A10L5JEZTKKCZ8" || $ModelNumber eq "VOBOT")           {return "VOBOT";}
 	elsif($ModelNumber eq "")               {return "";}
 	elsif($ModelNumber eq "ACCOUNT")        {return "ACCOUNT";}
 	else {return "unbekannt";}
@@ -4026,6 +4114,7 @@ sub echodevice_getsequenceJson($$$) {
 	my $ResultString ;
 	my $BereichString;
 	my $BereichValue = "";
+	my $Optionals = "";
 		
 	if (lc($Bereich) eq "kalender_heute") {
 		$BereichString = '\"type\":\"Alexa.Calendar.PlayToday\"';
@@ -4060,7 +4149,7 @@ sub echodevice_getsequenceJson($$$) {
 		$BereichString = '\"type\":\"Alexa.Speak\"';
 		$BereichValue  = '\"textToSpeak\":\"'.$Parameter.'\",';
 	}
-
+	
 	elsif(lc($Bereich) eq "erzaehle_geschichte")      {$BereichString = '\"type\":\"Alexa.TellStory.Play\"';}
 	elsif(lc($Bereich) eq "erzaehle_witz")            {$BereichString = '\"type\":\"Alexa.Joke.Play\"';}
 	elsif(lc($Bereich) eq "erzaehle_was_neues")       {$BereichString = '\"type\":\"Alexa.GoodMorning.Play\"';}
@@ -4135,7 +4224,8 @@ sub echodevice_NPMInstall(){
 
 sub echodevice_NPMLoginNew($){
 	my ($hash) = @_;
-	my $name = $hash->{NAME};
+	my $name   = $hash->{NAME};
+	my $number = $hash->{NR};
 	my $InstallResult = '<html><p><strong>Login Ergebnis</strong></p><br>';
 	my $npm_bin_node  = AttrVal($name,"npm_bin_node","/usr/bin/node");
 	
@@ -4162,7 +4252,7 @@ sub echodevice_NPMLoginNew($){
 	}
 	
 	my $ProxyPort = AttrVal($name,"npm_proxy_port","3002");
-	my $OwnIP;
+	my $OwnIP     = "127.0.0.1";
 
 	# Eigene IP-Adresse ermitteln
 	my $cmdLine = 'ip -o addr show | awk \'/inet/ {print $2, $3, $4}\'';
@@ -4171,11 +4261,55 @@ sub echodevice_NPMLoginNew($){
 	foreach my $ipLine (@ips) {
 		my ($interface, undef, $ipParts) = split(' ', $ipLine);
 		my ($ip) = split('/', $ipParts);
-		if ($interface ne 'lo') {$OwnIP = $ip;}
+		if ($interface ne 'lo') {
+			$OwnIP = $ip if (!(index($ip, ":") != -1));
+		}
 	}
 
 	my $ProxyIP   = AttrVal($name,"npm_proxy_ip",$OwnIP);
+
+	if ($OwnIP eq "127.0.0.1") {
+		$InstallResult .= '<p>Die Ermittlung der IP-Adresse <strong>' . $OwnIP . '</strong> des FHEM Servers hat nicht funktioniert, bitte das Attribut "<strong>npm_proxy_ip</strong>" entsprechend anpassen.</p>';
+		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+		$InstallResult .= "</html>";
+		$InstallResult =~ s/'/&#x0027/g;
+		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] wrong IP-Address" ;
+		return $InstallResult;
+	}
+
+	# Prüfen ob der Port belegt ist
+	close PORT;
+	open PORT,'-|', 'netstat -a' or die $@;
+	my $PORTResult;
+	my $PORTLoop = "1";
+	do {
+		$PORTResult=<PORT>;
 	
+		Log3 $name, 4, "[$name] [echodevice_NPMLoginNew] Result Proxy Port $PORTResult" if ($PORTResult ne "");
+		
+		if (index($PORTResult, ":" . $ProxyPort . " " ) != -1) {
+			$PORTLoop = "2";
+			Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Result Proxy Port $PORTResult";
+		}
+	
+		$PORTLoop = "3" if ($PORTResult eq "");
+	
+	} while ($PORTLoop eq "1");
+	
+	close PORT;
+	
+	if ($PORTLoop eq "2") {
+		$InstallResult .= '<p>Der angegebene Proxy Port <strong>' . $ProxyPort . '</strong> ist in Benutzung, bitte das Attribut "<strong>npm_proxy_port</strong>" entsprechend anpassen.</p>';
+		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+		$InstallResult .= "</html>";
+		$InstallResult =~ s/'/&#x0027/g;
+		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Proxy Port $ProxyPort is in use" ;
+		return $InstallResult;		
+	}
+	else {
+		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Proxy Port $ProxyPort is free";
+	}
+		
 	my $SkriptContent  = "alexaCookie = require('alexa-cookie2');" . "\n";
 	$SkriptContent    .= "fs = require('fs');" . "\n";
 	$SkriptContent    .= "" . "\n";
@@ -4190,14 +4324,14 @@ sub echodevice_NPMLoginNew($){
 	$SkriptContent    .= "" . "\n";
 	$SkriptContent    .= "alexaCookie.generateAlexaCookie('" . uri_escape(echodevice_decrypt($hash->{helper}{".USER"})) . "', '" . uri_escape(echodevice_decrypt($hash->{helper}{".PASSWORD"})) . "', config, (err, result) => {" . "\n";
 	$SkriptContent    .= "    console.log('RESULT: ' + err + ' / ' + JSON.stringify(result));" . "\n";
-	$SkriptContent    .= "    fs.writeFileSync('./cache/alexa-cookie/result.json', JSON.stringify(result) , 'utf-8'); " . "\n";
+	$SkriptContent    .= "    fs.writeFileSync('./cache/alexa-cookie/" . $number . "result.json', JSON.stringify(result) , 'utf-8'); " . "\n";
 	$SkriptContent    .= "    if (result && result.csrf) {" . "\n";
 	$SkriptContent    .= "        alexaCookie.stopProxyServer();" . "\n";
 	$SkriptContent    .= "    }" . "\n";
 	$SkriptContent    .= "});" . "\n";
 	$SkriptContent    .= "" . "\n";
-	
-	my $filename  = "cache/alexa-cookie/create-cookie.js";
+
+	my $filename  = "cache/alexa-cookie/" . $number . "create-cookie.js";
 
 	# Altes Skript löschen
 	if ((-e $filename)) {unlink $filename};
@@ -4207,23 +4341,37 @@ sub echodevice_NPMLoginNew($){
 	print FH $SkriptContent;
 	close(FH);
 
+	# Prüfen ob das alexa-cookie Mdoul vorhanden ist
+	if (!(-e $filename)) {
+		$InstallResult .= '<p>Das Skript zum Amazon Login konnte nicht gefunden werden!</p>';
+		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+		$InstallResult .= "</html>";
+		$InstallResult =~ s/'/&#x0027/g;
+		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] create-cookie.js not found" ;
+		return $InstallResult;
+	}
+	
 	my $CreatCookie;
 
 	# Infos festhalten
 	readingsSingleUpdate( $hash, "amazon_refreshtoken", "wird erzeugt",1 );
-	
+		
 	# Skript ausführen
-	open CMD,'-|', $npm_bin_node . ' ./cache/alexa-cookie/create-cookie.js' or die $@;
+	close CMD;
+	open CMD,'-|', $npm_bin_node . ' ./' . $filename or die $@;
 	my $line;
 	my $Loop = "1";
+	my $LoopCount = 0;
 	do {
 		$line=<CMD>;
 		$CreatCookie .= $line. "<br>";
-	
-		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Result $line" if ($line ne "");
+			
+		if ($line ne "") {Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Result $line"} 
+		else {$LoopCount +=1;}
 		
-		if (index($line, "Please check credentials") != -1) {$Loop = "2";}
-		if (index($line, "Final Registraton Result") != -1) {$Loop = "3";}
+		$Loop = "2" if (index($line, "Please check credentials") != -1) ;
+		$Loop = "3" if (index($line, "Final Registraton Result") != -1) ;
+		$Loop = "4" if ($line ne "" && $LoopCount > 10);
 	
 	} while ($Loop eq "1");
 	
@@ -4234,55 +4382,32 @@ sub echodevice_NPMLoginNew($){
 		$InstallResult .= "</html>";
 		$InstallResult =~ s/'/&#x0027/g;
 		InternalTimer(gettimeofday() + 3 , "echodevice_NPMWaitForCookie" , $hash, 0);
-		
-		# result.json löschen
-		if ((-e $filename)) {unlink $filename};
-		
 		return $InstallResult;
 	}
-
-	if ($Loop eq "3") {
+	elsif($Loop eq "3") {
 		$InstallResult .= '<p><strong><font color="green">Refreshtoken wurde erfolgreich erstellt</font></strong></p>';
+		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
 		$InstallResult .= "</html>";
 		$InstallResult =~ s/'/&#x0027/g;
 		return $InstallResult;
 	}
-
-	return $InstallResult;
-	
-}
-
-sub echodevice_NPMWaitForCookie($){
-	my ($hash) = @_;
-	my $name = $hash->{NAME};
-	my $filename  = "cache/alexa-cookie/result.json";
-	
-	if (-e $filename) {
-		Log3 $name, 3, "[$name] [echodevice_NPMWaitForCookie] write new refreshtoken" ;
-		readingsSingleUpdate( $hash, "amazon_refreshtoken", "vorhanden",1 );
-		
-		# Informationen eintragen	
-		open(MAILDAT, "<$filename") || die "Datei wurde nicht gefunden\n";
-		while(<MAILDAT>){
-			readingsSingleUpdate( $hash, ".COOKIE", $_,1 );
-			readingsSingleUpdate( $hash, "COOKIE_TYPE", "NPM_Login",1 );
-		}
-		close(MAILDAT);
-	
-		# result.json & Skripte löschen
-		if (-e $filename) {unlink $filename;}
-		if (-e "cache/alexa-cookie/create-cookie.js")  {unlink "cache/alexa-cookie/create-cookie.js";}
-		if (-e "cache/alexa-cookie/refresh-cookie.js") {unlink "cache/alexa-cookie/refresh-cookie.js";}
+	elsif($Loop eq "4") {
+		$InstallResult .= '<p><strong><font color="red">Es ist ein Fehler aufgetreten!! Bitte das FHEM Log pruefen.</font></strong></p>';
+		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+		$InstallResult .= "</html>";
+		$InstallResult =~ s/'/&#x0027/g;
+		return $InstallResult;
 	}
 	else {
-		Log3 $name, 4, "[$name] [echodevice_NPMWaitForCookie] wait for refreshtoken" ;
-		InternalTimer(gettimeofday() + 1 , "echodevice_NPMWaitForCookie" , $hash, 0);
+		return $InstallResult;
 	}
+	
 }
 
 sub echodevice_NPMLoginRefresh($){
 	my ($hash) = @_;
 	my $name = $hash->{NAME};
+	my $number = $hash->{NR};
 
 	my $InstallResult = '<html><p><strong>Login Ergebnis</strong></p><br>';
 	my $npm_bin_node  = AttrVal($name,"npm_bin_node","/usr/bin/node");
@@ -4319,11 +4444,11 @@ sub echodevice_NPMLoginRefresh($){
 	$SkriptContent    .= "" . "\n";
 	$SkriptContent    .= "alexaCookie.refreshAlexaCookie(config, (err, result) => {" . "\n";
 	$SkriptContent    .= "    console.log('RESULT: ' + err + ' / ' + JSON.stringify(result));" . "\n";
-	$SkriptContent    .= "    fs.writeFileSync('./cache/alexa-cookie/result.json', JSON.stringify(result) , 'utf-8'); " . "\n";
+	$SkriptContent    .= "    fs.writeFileSync('./cache/alexa-cookie/" . $number . "result.json', JSON.stringify(result) , 'utf-8'); " . "\n";
 	$SkriptContent    .= "});" . "\n";
 	$SkriptContent    .= "" . "\n";
 	
-	my $filename  = "cache/alexa-cookie/refresh-cookie.js";
+	my $filename  = "cache/alexa-cookie/" . $number . "refresh-cookie.js";
 	#$InstallResult .= '<form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form><br>';
 	
 	# Altes Skript löschen
@@ -4333,11 +4458,22 @@ sub echodevice_NPMLoginRefresh($){
 	open(FH, ">$filename");
 	print FH $SkriptContent;
 	close(FH);
+
+	# Prüfen ob das alexa-cookie Mdoul vorhanden ist
+	if (!(-e $filename)) {
+		$InstallResult .= '<p>Das Skript zum Amazon Login konnte nicht gefunden werden!</p>';
+		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+		$InstallResult .= "</html>";
+		$InstallResult =~ s/'/&#x0027/g;
+		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] refresh-cookie.js not found" ;
+		return $InstallResult;
+	}
+
 	
 	# Skript ausführen
 	close CMD;
 	#Log3 $name, 3, "[$name] [echodevice_NPMLoginRefresh] start" ;
-	open CMD,'-|',$npm_bin_node . ' ./cache/alexa-cookie/refresh-cookie.js &' or die $@;
+	open CMD,'-|',$npm_bin_node . ' ./' . $filename . ' &' or die $@;
 	
 	#system("node ./cache/alexa-cookie/refresh-cookie.js &");
 	
@@ -4361,6 +4497,48 @@ sub echodevice_NPMLoginRefresh($){
 
 	return ;#$InstallResult;
 
+}
+
+sub echodevice_NPMWaitForCookie($){
+	my ($hash) = @_;
+	my $name   = $hash->{NAME};
+	my $number = $hash->{NR};
+	my $filename  = "cache/alexa-cookie/" . $number . "result.json";
+	my $CanDelete = 0;
+	
+	if (-e $filename) {
+		# Informationen eintragen	
+		open(MAILDAT, "<$filename") || die "Datei wurde nicht gefunden\n";
+		while(<MAILDAT>){
+			if (index($_, "{") != -1) {
+				Log3 $name, 3, "[$name] [echodevice_NPMWaitForCookie] write new refreshtoken";
+				readingsSingleUpdate( $hash, "amazon_refreshtoken", "vorhanden",1 );
+				readingsSingleUpdate( $hash, ".COOKIE", $_,1 );
+				readingsSingleUpdate( $hash, "COOKIE_TYPE", "NPM_Login",1 );
+
+				$hash->{helper}{".COOKIE"} = $_;
+				$hash->{helper}{".COOKIE"} =~ /"localCookie":".*session-id=(.*)","?/;
+				$hash->{helper}{".COOKIE"} = "session-id=" . $1;
+				$hash->{helper}{".COOKIE"} =~ /csrf=([-\w]+)[;\s]?(.*)?$/ if(defined($hash->{helper}{".COOKIE"}));
+				$hash->{helper}{".CSRF"}   = $1  if(defined($hash->{helper}{".COOKIE"}));
+
+				# result.json & Skripte löschen
+				if (-e $filename) {unlink $filename;}
+				if (-e "cache/alexa-cookie/" . $number . "create-cookie.js")  {unlink "cache/alexa-cookie/" . $number . "create-cookie.js";}
+				if (-e "cache/alexa-cookie/" . $number . "refresh-cookie.js") {unlink "cache/alexa-cookie/" . $number . "refresh-cookie.js";}
+			}
+			else {
+				readingsSingleUpdate( $hash, "amazon_refreshtoken", "wait for refreshtoken",1 );
+				Log3 $name, 4, "[$name] [echodevice_NPMWaitForCookie] wait for refreshtoken";
+				InternalTimer(gettimeofday() + 1 , "echodevice_NPMWaitForCookie" , $hash, 0);
+			}
+		}
+		close(MAILDAT);
+	}
+	else {
+		Log3 $name, 4, "[$name] [echodevice_NPMWaitForCookie] wait for refreshtoken" ;
+		InternalTimer(gettimeofday() + 1 , "echodevice_NPMWaitForCookie" , $hash, 0);
+	}
 }
 
 ##########################
