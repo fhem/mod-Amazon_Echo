@@ -1,8 +1,10 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
-# 2019.01.13 v0.0.51h
+# 2019.01.15 v0.0.51m
 # - BUGFIX:  NPM Proxy IP Adresse / Port usw.
+#            set routine_play - Unterstützung Smart Home Geräte
+#            set speak - Sonderzeichen " entfernen
 # - FEATURE: Unterstützung AppRegisterLogin per NPM
 #            Unterstützung A10L5JEZTKKCZ8 VOBOT
 #            set speak_ssml https://docs.aws.amazon.com/polly/latest/dg/supported-ssml.html
@@ -314,7 +316,7 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.51h";
+my $ModulVersion     = "0.0.51m";
 my $AWSPythonVersion = "0.0.3";
 
 ##############################################################################
@@ -1616,52 +1618,12 @@ sub echodevice_SendCommand($$$) {
 		$SendMetode = "POST";	
 		
 		my @parameters = split("@",$SendData);
-		my @AlarmType  = split("_",$SendData);
-		my @StateType  = split("_",$type);
-		my $SetTo      = uc($StateType[1]);
+		my $sequenceJson = encode_json($hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{sequence});
+		$sequenceJson =~ s/"/\\"/g;
 		
-		#my $triggerJson  = $hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{triggers};
-		my $sequenceJson = $hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{sequence};
-		#my $AlexaLocal   = $hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{triggers}[0]{payload}{locale};
-
-		#TriggerJson formatieren
-		#$triggerJson = '{\"id\":\"'. $hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{triggers}[0]{id} . '\",\"@type\":\"com.amazon.alexa.behaviors.model.Trigger\",\"type\":\"'.$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{triggers}[0]{type}.'\",\"payload\":\"{\\\\\\"locale\\\\\\":\\\\\\"'.$AlexaLocal.'\\\\\\",\\\\\\"marketplaceId\\\\\\":\\\\\\"'.$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{triggers}[0]{payload}{marketplaceId}.'\\\\\\",\\\\\\"utterance\\\\\\":\\\\\\"'.$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{triggers}[0]{payload}{utterance}.'\\\\\\",\\\\\\"customerId\\\\\\":\\\\\\"'.$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{triggers}[0]{payload}{customerId}.'\\\\\\",\\\\\\"@type\\\\\\":\\\\\\"com.amazon.alexa.behaviors.model.CustomUtteranceTriggerPayload\\\\\\"}\"}';
+		#Log3 $name, 3, "[$name] [DEBUG] JSONORG=" . $sequenceJsonTest;
+		#Log3 $name, 3, "[$name] [DEBUG] JSONNEW=" . $sequenceJson;
 		
-		#sequenceJson formatieren
-		my @NodeExeS = ();
-		my $NodeExeR ;
-		
-		if (defined($hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{sequence}{startNode}{nodesToExecute})) {
-			$sequenceJson = '{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.SerialNode\",\"nodesToExecute\":[';
-			foreach my $NodeExeJson (@{$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{sequence}{startNode}{nodesToExecute}}) {
-				$NodeExeR = '{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"'.$NodeExeJson->{type}.'\",\"operationPayload\":{';
-				foreach my $DeviceID (keys %{$NodeExeJson->{operationPayload}}) {
-					if (substr ($NodeExeR, -1) ne '{') {$NodeExeR .= ',';}
-					$NodeExeR .= '\"'.$DeviceID.'\":\"'.encode_utf8($NodeExeJson->{operationPayload}{$DeviceID}).'\"';
-				}
-				$NodeExeR .= '}}';
-				#Log3 $name, 3, "[$name] [echodevice_SendCommand] [$type] NodeExeR=" . $NodeExeR;
-				push @NodeExeS, $NodeExeR;		
-			}
-			if (@NodeExeS) {
-				$sequenceJson .= join(",", @NodeExeS);
-			}	
-			$sequenceJson .= ']}}';
-		}
-		else{
-			$sequenceJson = '{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":';
-			$NodeExeR = '{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"'.$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{sequence}{startNode}{type}.'\",\"operationPayload\":{';
-				foreach my $DeviceID (keys %{$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{sequence}{startNode}{operationPayload}}) {
-					if (substr ($NodeExeR, -1) ne '{') {$NodeExeR .= ',';}
-					$NodeExeR .= '\"'.$DeviceID.'\":\"'.encode_utf8($hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{sequence}{startNode}{operationPayload}{$DeviceID}).'\"';
-				}
-				$NodeExeR .= '}}';
-				$sequenceJson .= $NodeExeR .'}';
-		}
-		
-		#Log3 $name, 3, "[$name] [echodevice_SendCommand] [$type] sequenceJson=" . $sequenceJson;
-	   
-		#$SendData = '{"behaviorId":"'.$parameters[1].'","triggerJson":"'.$triggerJson.'","sequenceJson":"'.$sequenceJson.'","status":"'.$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{status}.'"}';
 		$SendData = '{"behaviorId":"'.$parameters[1].'","sequenceJson":"'.$sequenceJson.'","status":"'.$hash->{IODev}->{helper}{"getbehavior"}{$parameters[1]}{status}.'"}';
 		my $AlexaType = $hash->{helper}{DEVICETYPE};
 		my $AlexaDSN  = $hash->{helper}{".SERIAL"};
@@ -1907,6 +1869,9 @@ sub echodevice_SendCommand($$$) {
 	
 		my $sequenceJson;
 	
+		# Sonderzeichen entfernen
+		$SendData =~s/"/ /g;
+		
 		if(AttrVal($name,"speak_volume",0) > 0){
 		#if(ReadingsVal($name , "volume", 50) < ReadingsVal($name , "volume_alarm", 50)) {
 			$SendData = '{"behaviorId":"PREVIEW","sequenceJson":"{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.SerialNode\",\"nodesToExecute\":[{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.AttrVal($name , "speak_volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.Speak\",\"operationPayload\":{\"locale\":\"de-DE\",\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\",\"textToSpeak\":\"'.$SendData.'\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.ReadingsVal($name , "volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}}]}}","status":"ENABLED"}'
@@ -1925,6 +1890,9 @@ sub echodevice_SendCommand($$$) {
 		$SendMetode = "POST";	
 	
 		my $sequenceJson;
+	
+		# Sonderzeichen entfernen
+		$SendData =~s/"/'/g;
 	
 		if(AttrVal($name,"speak_volume",0) > 0){
 			$SendData = '{"behaviorId":"PREVIEW","sequenceJson":"{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.SerialNode\",\"nodesToExecute\":[{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.AttrVal($name , "speak_volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"AlexaAnnouncement\",\"operationPayload\":{\"expireAfter\":\"PT5S\",\"content\":[{\"locale\":\"\",\"display\":{\"title\":\"FHEM\",\"body\":\"Speak\"},\"speak\":{\"type\":\"ssml\",\"value\":\"' . $SendData . '\"}}],\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"target\":{\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"devices\":[{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"deviceTypeId\":\"' . $hash->{helper}{DEVICETYPE} . '\"}]}}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.ReadingsVal($name , "volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}}]}}","status":"ENABLED"}'
@@ -2810,7 +2778,6 @@ sub echodevice_Parse($$$) {
 			$hash->{helper}{"getbehavior"}{$behavior->{automationId}}{triggers} = $behavior->{triggers};
 			$hash->{helper}{"getbehavior"}{$behavior->{automationId}}{sequence} = $behavior->{sequence};
 			$hash->{helper}{"getbehavior"}{$behavior->{automationId}}{status}   = $behavior->{status};
-		
 		}
 	}
 	
@@ -4229,7 +4196,7 @@ sub echodevice_NPMLoginNew($){
 	my $InstallResult = '<html><p><strong>Login Ergebnis</strong></p><br>';
 	my $npm_bin_node  = AttrVal($name,"npm_bin_node","/usr/bin/node");
 	
-	# Prüfen ob npm installiert ist
+	# Prüfen ob node installiert ist
 	if (!(-e $npm_bin_node)) {
 		$InstallResult .= '<p>Das Bin <strong>' . $npm_bin_node . '</strong> wurde nicht gefunden. Bitte zuerst das Linux Paket NPM installieren. Folgenden Befehl koennt Ihr hier verwenden:</p>';
 		$InstallResult .= '<p><strong><font color="blue">sudo apt-get install npm</font></strong></p><br>';
@@ -4241,6 +4208,36 @@ sub echodevice_NPMLoginNew($){
 		return $InstallResult;
 	}
 
+	# Node Version prüfen
+	close NODEVER;
+	open NODEVER,'-|', 'node -v' or die $@;
+	my $NodeResult;
+	my $NodeLoop = "2";
+	do {
+		$NodeResult=<NODEVER>;
+		$NodeResult =~ s/v//g; 
+	
+		#Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version $NodeResult";
+		if (version->declare($NodeResult)->numify < version->declare('8.10')->numify ) {
+
+			$InstallResult .= '<p>Die installierte Node Version  <strong>' . $NodeResult . '</strong> ist zu alt. Bitte zuerst die Node Version auf Minimum <strong>8.12</strong> aktualisieren. Folgenden Befehle koennt Ihr hier verwenden:</p>';
+			$InstallResult .= '<p><strong><font color="blue">sudo apt-get install curl</font></strong></p>';
+			$InstallResult .= '<p><strong><font color="blue">curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -</font></strong></p>';
+			$InstallResult .= '<p><strong><font color="blue">sudo apt-get update</font></strong></p>';
+			$InstallResult .= '<p><strong><font color="blue">sudo apt-get install nodejs</font></strong></p><br>';
+			$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+			$InstallResult .= "</html>";
+			$InstallResult =~ s/'/&#x0027/g;
+			Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult . " is to old! Pleas make an update";
+			return $InstallResult;
+
+		}
+		else {Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult;}
+		
+		
+		
+	} while ($NodeLoop eq "1");
+	
 	# Prüfen ob das alexa-cookie Mdoul vorhanden ist
 	if (!(-e "cache/alexa-cookie/node_modules/alexa-cookie2/alexa-cookie.js")) {
 		$InstallResult .= '<p>Das alexa-cookie Modul wurde nicht gefunden. Bitte fuehrt am Amazon Account Device einen set "<strong>NPM_install</strong>" durch </p>';
@@ -4276,7 +4273,7 @@ sub echodevice_NPMLoginNew($){
 		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] wrong IP-Address" ;
 		return $InstallResult;
 	}
-
+	
 	# Prüfen ob der Port belegt ist
 	close PORT;
 	open PORT,'-|', 'netstat -a' or die $@;
@@ -4309,7 +4306,9 @@ sub echodevice_NPMLoginNew($){
 	else {
 		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Proxy Port $ProxyPort is free";
 	}
-		
+
+	Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Proxy IP $ProxyIP";
+
 	my $SkriptContent  = "alexaCookie = require('alexa-cookie2');" . "\n";
 	$SkriptContent    .= "fs = require('fs');" . "\n";
 	$SkriptContent    .= "" . "\n";
@@ -4322,7 +4321,7 @@ sub echodevice_NPMLoginNew($){
 	$SkriptContent    .= "    proxyLogLevel: 'info'" . "\n";
 	$SkriptContent    .= "};" . "\n";
 	$SkriptContent    .= "" . "\n";
-	$SkriptContent    .= "alexaCookie.generateAlexaCookie('" . uri_escape(echodevice_decrypt($hash->{helper}{".USER"})) . "', '" . uri_escape(echodevice_decrypt($hash->{helper}{".PASSWORD"})) . "', config, (err, result) => {" . "\n";
+	$SkriptContent    .= "alexaCookie.generateAlexaCookie('LoginFHEM', 'xxxx', config, (err, result) => {" . "\n";
 	$SkriptContent    .= "    console.log('RESULT: ' + err + ' / ' + JSON.stringify(result));" . "\n";
 	$SkriptContent    .= "    fs.writeFileSync('./cache/alexa-cookie/" . $number . "result.json', JSON.stringify(result) , 'utf-8'); " . "\n";
 	$SkriptContent    .= "    if (result && result.csrf) {" . "\n";
@@ -4371,7 +4370,7 @@ sub echodevice_NPMLoginNew($){
 		
 		$Loop = "2" if (index($line, "Please check credentials") != -1) ;
 		$Loop = "3" if (index($line, "Final Registraton Result") != -1) ;
-		$Loop = "4" if ($line ne "" && $LoopCount > 10);
+		$Loop = "4" if ($line eq "" && $LoopCount > 100);
 	
 	} while ($Loop eq "1");
 	
