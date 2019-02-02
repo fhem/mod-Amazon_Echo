@@ -1,12 +1,13 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
-# 2019.01.25 v0.0.51p
+# 2019.01.31 v0.0.51s
 # - BUGFIX:  NPM Proxy IP Adresse / Port usw.
 #            set routine_play - Unterstützung Smart Home Geräte
 #            set speak - Sonderzeichen " entfernen
 # - FEATURE: Unterstützung AppRegisterLogin per NPM
 #            Unterstützung A10L5JEZTKKCZ8 VOBOT
+#            UnterstützungA1JJ0KFC4ZPNJ3 ECHO Input
 #            set speak_ssml https://docs.aws.amazon.com/polly/latest/dg/supported-ssml.html
 #            https://developer.amazon.com/de/docs/custom-skills/speech-synthesis-markup-language-ssml-reference.html
 #            get status - Statusinformationen zum Modul
@@ -316,8 +317,9 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.51p";
+my $ModulVersion     = "0.0.51s";
 my $AWSPythonVersion = "0.0.3";
+my $NPMLoginTyp		 = "unbekannt";
 
 ##############################################################################
 sub echodevice_Initialize($) {
@@ -576,7 +578,8 @@ sub echodevice_Get($@) {
 		#Allgemeine Informationen
 		$return .= '<table align="" border="0" cellspacing="0" cellpadding="3" width="100%" height="100%" class="mceEditable"><tbody>';
 		$return .= "<p><strong>Modul Infos:</strong></p>";
-		$return .= "<tr><td><strong>Beschreigung&nbsp;&nbsp;&nbsp</strong></td><td><strong>Bereich&nbsp;&nbsp;&nbsp</strong></td><td><strong>Wert</strong></td></tr>";
+		$return .= "<tr><td><strong>Beschreibung&nbsp;&nbsp;&nbsp</strong></td><td><strong>Bereich&nbsp;&nbsp;&nbsp</strong></td><td><strong>Wert</strong></td></tr>";
+		$return .= "<tr><td>STATE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "state", "unbekannt") . "</td></tr>";
 		$return .= "<tr><td>Version&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "version", "unbekannt") . "</td></tr>";
 		$return .= "<tr><td>COOKIE_STATE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_STATE", "unbekannt") . "</td></tr>";
 		$return .= "<tr><td>COOKIE_TYPE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_TYPE", "unbekannt") . "</td></tr>";
@@ -593,7 +596,7 @@ sub echodevice_Get($@) {
 		#Allgemeine Cookie Infos
 		$return .= '<table align="" border="0" cellspacing="0" cellpadding="3" width="100%" height="100%" class="mceEditable"><tbody>';
 		$return .= "<p><strong>Amazon Cookie:</strong></p>";
-		$return .= "<tr><td><strong>Beschreigung&nbsp;&nbsp;&nbsp</strong></td><td><strong>Bereich&nbsp;&nbsp;&nbsp</strong></td><td><strong>Wert</strong></td></tr>";
+		$return .= "<tr><td><strong>Beschreibung&nbsp;&nbsp;&nbsp</strong></td><td><strong>Bereich&nbsp;&nbsp;&nbsp</strong></td><td><strong>Wert</strong></td></tr>";
 		$return .= "<tr><td>.COOKIE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . substr(ReadingsVal( $name, ".COOKIE", "unbekannt" ), 0, 20) . "....</td></tr>";
 		$return .= "<tr><td>COOKIE_STATE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_STATE", "unbekannt") . "</td></tr>";
 		$return .= "<tr><td>COOKIE_TYPE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_TYPE", "unbekannt") . "</td></tr>";
@@ -788,7 +791,7 @@ sub echodevice_Set($@) {
 	return echodevice_SendLoginCommand($hash,"cookielogin1","") if($command eq "login");
 	
 	if($command eq "NPM_install"){ 
-		return echodevice_NPMInstall();
+		return echodevice_NPMInstall($hash);
 	}
 
 	if($command eq "NPM_login"){ 
@@ -3952,6 +3955,7 @@ sub echodevice_getModel($){
 	elsif($ModelNumber eq "A1NL4BVLQ4L3N3" || $ModelNumber eq "Echo Show")       {return "Echo Show";}
 	elsif($ModelNumber eq "AWZZ5CVHX2CD"   || $ModelNumber eq "Echo Show")       {return "Echo Show Gen2";}
 	elsif($ModelNumber eq "A2M35JJZWCQOMZ" || $ModelNumber eq "Echo Plus")       {return "Echo Plus";}
+	elsif($ModelNumber eq "A1JJ0KFC4ZPNJ3" || $ModelNumber eq "Echo Input")      {return "Echo Input";}
 	elsif($ModelNumber eq "A18O6U1UQFJ0XK" || $ModelNumber eq "Echo Plus 2")     {return "Echo Plus 2";}
 	elsif($ModelNumber eq "AILBSA2LNTOYL"  || $ModelNumber eq "Reverb")          {return "Reverb";}
 	elsif($ModelNumber eq "A15ERDAKK5HQQG" || $ModelNumber eq "Sonos Display")   {return "Sonos Display";}
@@ -4022,7 +4026,7 @@ sub echodevice_anonymize($$) {
 	$string =~ s/$s2/CUSTOMER/g;
 	$string =~ s/$s3/HOMEGROUP/g;
 	$string =~ s/$s4/COMMSID/g;
-	$string =~ s%$s5%USER%g;
+	# $string =~ s%$s5%USER%g;
 	return $string;
 }
 
@@ -4147,8 +4151,11 @@ sub echodevice_refreshvoice($) {
 ##########################
 # NPM HELPER
 ##########################
-sub echodevice_NPMInstall(){
+sub echodevice_NPMInstall($){
 
+	my ($hash) = @_;
+	my $name = $hash->{NAME};
+	
 	my $InstallResult = '<html><p><strong>Installationsergebnis</strong></p><br>';
 	my $npm_bin = AttrVal($name,"npm_bin","/usr/bin/npm");
 	
@@ -4199,6 +4206,7 @@ sub echodevice_NPMLoginNew($){
 	my $number = $hash->{NR};
 	my $InstallResult = '<html><p><strong>Login Ergebnis</strong></p><br>';
 	my $npm_bin_node  = AttrVal($name,"npm_bin_node","/usr/bin/node");
+	$NPMLoginTyp   = "NPM Login New " . localtime();
 	
 	# Prüfen ob node installiert ist
 	if (!(-e $npm_bin_node)) {
@@ -4219,7 +4227,7 @@ sub echodevice_NPMLoginNew($){
 	my $NodeLoop = "2";
 	do {
 		$NodeResult=<NODEVER>;
-		$NodeResult =~ s/v//g; 
+		$NodeResult =~ s/v//g;
 	
 		#Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version $NodeResult";
 		if (version->declare($NodeResult)->numify < version->declare('8.10')->numify ) {
@@ -4423,11 +4431,14 @@ sub echodevice_NPMLoginNew($){
 
 sub echodevice_NPMLoginRefresh($){
 	my ($hash) = @_;
-	my $name = $hash->{NAME};
-	my $number = $hash->{NR};
+	my $name          = $hash->{NAME};
+	my $number        = $hash->{NR};
+	my $RefreshCookie = ReadingsVal($name , ".COOKIE", "0");
 
 	my $InstallResult = '<html><p><strong>Login Ergebnis</strong></p><br>';
 	my $npm_bin_node  = AttrVal($name,"npm_bin_node","/usr/bin/node");
+	
+	$NPMLoginTyp   = "NPM Login Refresh " . localtime();
 	
 	# Prüfen ob npm installiert ist
 	if (!(-e $npm_bin_node)) {
@@ -4451,12 +4462,22 @@ sub echodevice_NPMLoginRefresh($){
 		return $InstallResult;
 	}
 	
+	# Prüfen ob das Refresh Cookie gültig ist!
+	if (substr($RefreshCookie,0,1) ne "{") { 
+		$InstallResult .= '<p>Das angegebene Refreshtoken Cookie ist ungeueltig! Refreshtoken="<strong>' . $RefreshCookie . '</strong>"</p>';
+		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+		$InstallResult .= "</html>";
+		$InstallResult =~ s/'/&#x0027/g;
+		Log3 $name, 3, "[$name] [echodevice_NPMLoginRefresh] refreshtoken unkown!! refreshtoken=" . $RefreshCookie;
+		return $InstallResult;
+	}
+	
 	my $SkriptContent  = "alexaCookie = require('alexa-cookie2');" . "\n";
 	$SkriptContent    .= "fs = require('fs');" . "\n";
 	$SkriptContent    .= "" . "\n";
 	$SkriptContent    .= "const config = {" . "\n";
 	$SkriptContent    .= "    logger: console.log," . "\n";
-	$SkriptContent    .= "    formerRegistrationData: " . ReadingsVal($name , ".COOKIE", "0") . "\n";
+	$SkriptContent    .= "    formerRegistrationData: " . $RefreshCookie . "\n";
 	$SkriptContent    .= "};" . "\n";
 	$SkriptContent    .= "" . "\n";
 	$SkriptContent    .= "alexaCookie.refreshAlexaCookie(config, (err, result) => {" . "\n";
@@ -4518,17 +4539,25 @@ sub echodevice_NPMLoginRefresh($){
 
 sub echodevice_NPMWaitForCookie($){
 	my ($hash) = @_;
-	my $name   = $hash->{NAME};
-	my $number = $hash->{NR};
-	my $filename  = "cache/alexa-cookie/" . $number . "result.json";
-	my $CanDelete = 0;
+	my $name        = $hash->{NAME};
+	my $number      = $hash->{NR};
+	my $filename    = "cache/alexa-cookie/" . $number . "result.json";
+	my $CanDelete   = 0;
+	my $ExistSkript = "false";
+	
+	if ($NPMLoginTyp =~ m/Refresh/) {
+		$ExistSkript = $number . "refresh-cookie.js = true"  if (-e "cache/alexa-cookie/" . $number . "refresh-cookie.js");
+	}
+	else {
+		$ExistSkript = $number . "create-cookie.js = true" if (-e "cache/alexa-cookie/" . $number . "create-cookie.js");
+	}
 	
 	if (-e $filename) {
 		# Informationen eintragen	
 		open(MAILDAT, "<$filename") || die "Datei wurde nicht gefunden\n";
 		while(<MAILDAT>){
 			if (index($_, "{") != -1) {
-				Log3 $name, 3, "[$name] [echodevice_NPMWaitForCookie] write new refreshtoken";
+				Log3 $name, 3, "[$name] [echodevice_NPMWaitForCookie] [$NPMLoginTyp] write new refreshtoken";
 				readingsSingleUpdate( $hash, "amazon_refreshtoken", "vorhanden",1 );
 				readingsSingleUpdate( $hash, ".COOKIE", $_,1 );
 				readingsSingleUpdate( $hash, "COOKIE_TYPE", "NPM_Login",1 );
@@ -4543,19 +4572,19 @@ sub echodevice_NPMWaitForCookie($){
 				if (-e $filename) {unlink $filename;}
 				if (-e "cache/alexa-cookie/" . $number . "create-cookie.js")  {unlink "cache/alexa-cookie/" . $number . "create-cookie.js";}
 				if (-e "cache/alexa-cookie/" . $number . "refresh-cookie.js") {unlink "cache/alexa-cookie/" . $number . "refresh-cookie.js";}
-				
-				echodevice_setState($hash,"connected");
+					
+				echodevice_setState($hash,"connected");				
 			}
 			else {
 				readingsSingleUpdate( $hash, "amazon_refreshtoken", "wait for refreshtoken",1 );
-				Log3 $name, 4, "[$name] [echodevice_NPMWaitForCookie] wait for refreshtoken";
+				Log3 $name, 3, "[$name] [echodevice_NPMWaitForCookie] [$NPMLoginTyp] wait for refreshtoken / refreshtoken unkown!! refreshtoken=" . $_ . " EXIST " . $ExistSkript;
 				InternalTimer(gettimeofday() + 1 , "echodevice_NPMWaitForCookie" , $hash, 0);
 			}
 		}
 		close(MAILDAT);
 	}
 	else {
-		Log3 $name, 4, "[$name] [echodevice_NPMWaitForCookie] wait for refreshtoken" ;
+		Log3 $name, 4, "[$name] [echodevice_NPMWaitForCookie] [$NPMLoginTyp] wait for refreshtoken exist " . $ExistSkript ;
 		InternalTimer(gettimeofday() + 1 , "echodevice_NPMWaitForCookie" , $hash, 0);
 	}
 }
