@@ -4249,36 +4249,37 @@ sub echodevice_NPMLoginNew($){
 		return $InstallResult;
 	}
 
-	# Node Version prüfen
-	close NODEVER;
-	open NODEVER,'-|', 'node -v' or die $@;
-	my $NodeResult;
-	my $NodeLoop = "2";
-	do {
-		$NodeResult=<NODEVER>;
-		$NodeResult =~ s/v//g;
-	
-		#Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version $NodeResult";
-		if (version->declare($NodeResult)->numify < version->declare('8.10')->numify ) {
+			# # Node Version prüfen
+			# close NODEVER;
+			# open NODEVER,'-|', 'node -v' or die $@;
+			# my $NodeResult;
+			# my $NodeLoop = "2";
+			# do {
+			# 	$NodeResult=<NODEVER>;
+			# 	$NodeResult =~ s/v//g;
+			#
+			# 	#Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version $NodeResult";
+			# 	if (version->declare($NodeResult)->numify < version->declare('8.10')->numify ) {
+			#
+			# 		$InstallResult .= '<p>Die installierte Node Version  <strong>' . $NodeResult . '</strong> ist zu alt. Bitte zuerst die Node Version auf Minimum <strong>8.12</strong> aktualisieren.
+			#		Folgende Befehle koennt Ihr hier verwenden:</p>';
+			# 		$InstallResult .= '<p><strong><font color="blue">sudo apt-get install curl</font></strong></p>';
+			# 		$InstallResult .= '<p><strong><font color="blue">curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -</font></strong></p>';
+			# 		$InstallResult .= '<p><strong><font color="blue">sudo apt-get update</font></strong></p>';
+			# 		$InstallResult .= '<p><strong><font color="blue">sudo apt-get install nodejs</font></strong></p><br>';
+			# 		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+			# 		$InstallResult .= "</html>";
+			# 		$InstallResult =~ s/'/&#x0027/g;
+			# 		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult . " is to old! Pleas make an update";
+			# 		return $InstallResult;
+			#
+			# 	}
+			# 	else {Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult;}
+			#
+			#
+			#
+			# } while ($NodeLoop eq "1");
 
-			$InstallResult .= '<p>Die installierte Node Version  <strong>' . $NodeResult . '</strong> ist zu alt. Bitte zuerst die Node Version auf Minimum <strong>8.12</strong> aktualisieren. Folgende Befehle koennt Ihr hier verwenden:</p>';
-			$InstallResult .= '<p><strong><font color="blue">sudo apt-get install curl</font></strong></p>';
-			$InstallResult .= '<p><strong><font color="blue">curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -</font></strong></p>';
-			$InstallResult .= '<p><strong><font color="blue">sudo apt-get update</font></strong></p>';
-			$InstallResult .= '<p><strong><font color="blue">sudo apt-get install nodejs</font></strong></p><br>';
-			$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
-			$InstallResult .= "</html>";
-			$InstallResult =~ s/'/&#x0027/g;
-			Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult . " is to old! Pleas make an update";
-			return $InstallResult;
-
-		}
-		else {Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult;}
-		
-		
-		
-	} while ($NodeLoop eq "1");
-	
 	# Prüfen ob das alexa-cookie Mdoul vorhanden ist
 	if (!(-e "cache/alexa-cookie/node_modules/alexa-cookie2/alexa-cookie.js")) {
 		$InstallResult .= '<p>Das alexa-cookie Modul wurde nicht gefunden. Bitte fuehrt am Amazon Account Device einen set "<strong>NPM_install</strong>" durch </p>';
