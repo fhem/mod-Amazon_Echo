@@ -1,6 +1,14 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
+# 2019.02.19 v0.0.54
+# - FEATURE: Unterstützung A1RABVCI4QCIKC ECHO dot 3
+#
+# 2019.02.19 v0.0.53
+# - FEATURE: Unterstützung A4ZP7ZC4PI6TO ECHO 5
+#            Unterstützung A1RTAM01W29CUP Alexa App for PC
+#            Unterstützung A21Z3CGI8UIP0F HEOS
+#
 # 2019.02.19 v0.0.52
 # - FEATURE: Alarme "_originalDate" als Reading
 # - BUGFIX:  Readings *_count Wert 
@@ -328,7 +336,7 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.52";
+my $ModulVersion     = "0.0.54";
 my $AWSPythonVersion = "0.0.3";
 my $NPMLoginTyp		 = "unbekannt";
 
@@ -3993,9 +4001,11 @@ sub echodevice_getModel($){
 	elsif($ModelNumber eq "A3S5BH2HU6VAYF" || $ModelNumber eq "Echo Dot")        		{return "Echo Dot";}
 	elsif($ModelNumber eq "A32DOYMUN6DTXA" || $ModelNumber eq "Echo Dot")        		{return "Echo Dot Gen3";}
 	elsif($ModelNumber eq "A32DDESGESSHZA" || $ModelNumber eq "Echo Dot")				{return "Echo Dot Gen3";}
+	elsif($ModelNumber eq "A1RABVCI4QCIKC" || $ModelNumber eq "Echo Dot")				{return "Echo Dot Gen3";}
 	elsif($ModelNumber eq "A10A33FOX2NUBK" || $ModelNumber eq "Echo Spot")				{return "Echo Spot";}
 	elsif($ModelNumber eq "A1NL4BVLQ4L3N3" || $ModelNumber eq "Echo Show")				{return "Echo Show";}
 	elsif($ModelNumber eq "AWZZ5CVHX2CD"   || $ModelNumber eq "Echo Show")				{return "Echo Show Gen2";}
+	elsif($ModelNumber eq "A4ZP7ZC4PI6TO"  || $ModelNumber eq "Echo Show 5")            {return "Echo Show 5";}
 	elsif($ModelNumber eq "A2M35JJZWCQOMZ" || $ModelNumber eq "Echo Plus")				{return "Echo Plus";}
 	elsif($ModelNumber eq "A1JJ0KFC4ZPNJ3" || $ModelNumber eq "Echo Input")				{return "Echo Input";}
 	elsif($ModelNumber eq "A18O6U1UQFJ0XK" || $ModelNumber eq "Echo Plus 2")			{return "Echo Plus 2";}
@@ -4019,7 +4029,8 @@ sub echodevice_getModel($){
 	elsif($ModelNumber eq "A10L5JEZTKKCZ8" || $ModelNumber eq "VOBOT")           		{return "VOBOT";}
 	elsif($ModelNumber eq "A37SHHQ3NUL7B5" || $ModelNumber eq "Bose Home Speaker 500")	{return "Bose Home Speaker 500";}
 	elsif($ModelNumber eq "AVN2TMX8MU2YM"  || $ModelNumber eq "Bose Home Speaker 500")	{return "Bose Home Speaker 500";}
-	elsif($ModelNumber eq "A1HNT9YTOBE735" || $ModelNumber eq "Telekom Smart Speaker")   {return "Telekom Smart Speaker";}
+	elsif($ModelNumber eq "A1RTAM01W29CUP" || $ModelNumber eq "Alexa App for PC")       {return "Alexa App for PC";}
+	elsif($ModelNumber eq "A21Z3CGI8UIP0F" || $ModelNumber eq "HEOS")                   {return "HEOS";}
 	elsif($ModelNumber eq "")               {return "";}
 	elsif($ModelNumber eq "ACCOUNT")        {return "ACCOUNT";}
 	else {return "unbekannt";}
@@ -4056,8 +4067,23 @@ sub echodevice_Attr($$$) {
 
 sub echodevice_anonymize($$) {
 	my ($hash, $string) = @_;
-
-	# no need to anonymize the data, function does break under some conditions
+	my $s1 = $hash->{helper}{".SERIAL"};
+	my $s2 = $hash->{helper}{".CUSTOMER"};
+	my $s3 = $hash->{helper}{HOMEGROUP};
+	my $s4 = $hash->{helper}{".COMMSID"};
+	my $s5;
+	$s5 = echodevice_decrypt($hash->{helper}{".USER"}) if(defined($hash->{helper}{".USER"}));
+	$s5 = echodevice_decrypt($hash->{IODev}->{helper}{".USER"}) if(defined($hash->{IODev}->{helper}{".USER"}));;
+	$s1 = "SERIAL" if(!defined($s1));
+	$s2 = "CUSTOMER" if(!defined($s2));
+	$s3 = "HOMEGROUP" if(!defined($s3));
+	$s4 = "COMMSID" if(!defined($s4));
+	$s5 = "USER" if(!defined($s5));
+	$string =~ s/$s1/SERIAL/g;
+	$string =~ s/$s2/CUSTOMER/g;
+	$string =~ s/$s3/HOMEGROUP/g;
+	$string =~ s/$s4/COMMSID/g;
+	$string =~ s%$s5%USER%g;
 	return $string;
 }
 
@@ -4250,37 +4276,36 @@ sub echodevice_NPMLoginNew($){
 		return $InstallResult;
 	}
 
-			# # Node Version prüfen
-			# close NODEVER;
-			# open NODEVER,'-|', 'node -v' or die $@;
-			# my $NodeResult;
-			# my $NodeLoop = "2";
-			# do {
-			# 	$NodeResult=<NODEVER>;
-			# 	$NodeResult =~ s/v//g;
-			#
-			# 	#Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version $NodeResult";
-			# 	if (version->declare($NodeResult)->numify < version->declare('8.10')->numify ) {
-			#
-			# 		$InstallResult .= '<p>Die installierte Node Version  <strong>' . $NodeResult . '</strong> ist zu alt. Bitte zuerst die Node Version auf Minimum <strong>8.12</strong> aktualisieren.
-			#		Folgende Befehle koennt Ihr hier verwenden:</p>';
-			# 		$InstallResult .= '<p><strong><font color="blue">sudo apt-get install curl</font></strong></p>';
-			# 		$InstallResult .= '<p><strong><font color="blue">curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -</font></strong></p>';
-			# 		$InstallResult .= '<p><strong><font color="blue">sudo apt-get update</font></strong></p>';
-			# 		$InstallResult .= '<p><strong><font color="blue">sudo apt-get install nodejs</font></strong></p><br>';
-			# 		$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
-			# 		$InstallResult .= "</html>";
-			# 		$InstallResult =~ s/'/&#x0027/g;
-			# 		Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult . " is to old! Pleas make an update";
-			# 		return $InstallResult;
-			#
-			# 	}
-			# 	else {Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult;}
-			#
-			#
-			#
-			# } while ($NodeLoop eq "1");
+	# Node Version prüfen
+	close NODEVER;
+	open NODEVER,'-|', 'node -v' or die $@;
+	my $NodeResult;
+	my $NodeLoop = "2";
+	do {
+		$NodeResult=<NODEVER>;
+		$NodeResult =~ s/v//g;
+	
+		#Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version $NodeResult";
+		if (version->declare($NodeResult)->numify < version->declare('8.10')->numify ) {
 
+			$InstallResult .= '<p>Die installierte Node Version  <strong>' . $NodeResult . '</strong> ist zu alt. Bitte zuerst die Node Version auf Minimum <strong>8.12</strong> aktualisieren. Folgende Befehle koennt Ihr hier verwenden:</p>';
+			$InstallResult .= '<p><strong><font color="blue">sudo apt-get install curl</font></strong></p>';
+			$InstallResult .= '<p><strong><font color="blue">curl -sL https://deb.nodesource.com/setup_8.x | sudo -E bash -</font></strong></p>';
+			$InstallResult .= '<p><strong><font color="blue">sudo apt-get update</font></strong></p>';
+			$InstallResult .= '<p><strong><font color="blue">sudo apt-get install nodejs</font></strong></p><br>';
+			$InstallResult .= '<br><form><input type="button" value="Zur&uuml;ck" onClick="history.go(-1);return true;"></form>';
+			$InstallResult .= "</html>";
+			$InstallResult =~ s/'/&#x0027/g;
+			Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult . " is to old! Pleas make an update";
+			return $InstallResult;
+
+		}
+		else {Log3 $name, 3, "[$name] [echodevice_NPMLoginNew] Node Version " . $NodeResult;}
+		
+		
+		
+	} while ($NodeLoop eq "1");
+	
 	# Prüfen ob das alexa-cookie Mdoul vorhanden ist
 	if (!(-e "cache/alexa-cookie/node_modules/alexa-cookie2/alexa-cookie.js")) {
 		$InstallResult .= '<p>Das alexa-cookie Modul wurde nicht gefunden. Bitte fuehrt am Amazon Account Device einen set "<strong>NPM_install</strong>" durch </p>';
