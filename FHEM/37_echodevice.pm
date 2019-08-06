@@ -323,7 +323,7 @@
 
 package main;
 
-use strict;
+# use strict;
 use warnings FATAL => 'all';
 use Time::Local;
 use Encode;
