@@ -323,7 +323,8 @@
 
 package main;
 
-#use strict;
+use strict;
+use warnings FATAL => 'all';
 use Time::Local;
 use Encode;
 use Encode qw/from_to/;
@@ -4074,16 +4075,7 @@ sub echodevice_anonymize($$) {
 	my $s5;
 	$s5 = echodevice_decrypt($hash->{helper}{".USER"}) if(defined($hash->{helper}{".USER"}));
 	$s5 = echodevice_decrypt($hash->{IODev}->{helper}{".USER"}) if(defined($hash->{IODev}->{helper}{".USER"}));;
-	$s1 = "SERIAL" if(!defined($s1));
-	$s2 = "CUSTOMER" if(!defined($s2));
-	$s3 = "HOMEGROUP" if(!defined($s3));
-	$s4 = "COMMSID" if(!defined($s4));
-	$s5 = "USER" if(!defined($s5));
-	$string =~ s/$s1/SERIAL/g;
-	$string =~ s/$s2/CUSTOMER/g;
-	$string =~ s/$s3/HOMEGROUP/g;
-	$string =~ s/$s4/COMMSID/g;
-	$string =~ s%$s5%USER%g;
+
 	return $string;
 }
 
