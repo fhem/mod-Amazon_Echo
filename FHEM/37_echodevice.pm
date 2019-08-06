@@ -3121,7 +3121,6 @@ sub echodevice_Parse($$$) {
 			}
 		}
 		# Bluetooth Geräte bereinigen!
-		my $echohash;
 		
 		foreach my $DeviceID (sort keys %{$modules{$hash->{TYPE}}{defptr}}) {
 			$echohash = $modules{$hash->{TYPE}}{defptr}{$DeviceID};
