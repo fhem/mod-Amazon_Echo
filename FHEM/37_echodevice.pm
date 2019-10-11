@@ -1,6 +1,19 @@
 # $Id: 37_echodevice.pm 15724 2017-12-29 22:59:44Z michael.winkler $
 ##############################################
 #
+# 2019.09.20 v0.0.55
+# - CHANGE:  speak_volume Auswertung Account-Device/Echo-Device
+#            DEF xxx@xxx.de xxx = NPM Login Modus
+# - BUGFIX:  presence
+#
+# 2019.07.22 v0.0.54
+# - FEATURE: Unterstützung A1RABVCI4QCIKC ECHO dot 3
+#
+# 2019.02.19 v0.0.53
+# - FEATURE: Unterstützung A4ZP7ZC4PI6TO ECHO 5
+#            Unterstützung A1RTAM01W29CUP Alexa App for PC
+#            Unterstützung A21Z3CGI8UIP0F HEOS
+#
 # 2019.02.19 v0.0.52
 # - FEATURE: Alarme "_originalDate" als Reading
 # - BUGFIX:  Readings *_count Wert 
@@ -328,7 +341,7 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.52";
+my $ModulVersion     = "0.0.55";
 my $AWSPythonVersion = "0.0.3";
 my $NPMLoginTyp		 = "unbekannt";
 
@@ -384,20 +397,27 @@ sub echodevice_Define($$$) {
 	$attr{$name}{server} = "layla.amazon.de" if( defined($attr{$name}) && !defined($attr{$name}{server}) );
 
 	RemoveInternalTimer($hash);
-
+	
 	if($a[2] =~ /crypt/ || $a[2] =~ /@/ || $a[2] =~ /^\+/) {
-    
 		$hash->{model} = "ACCOUNT";
 		
 		my $user = $a[2];
 		my $pass = $a[3];
 		
-		my $username = echodevice_encrypt($user);
-		my $password = echodevice_encrypt($pass);
-		$hash->{DEF} = "$username $password";
+		if ($user eq 'xxx@xxx.xx' and $pass eq "xxx") {
+			# Amazon NPM Login Modus
+			$hash->{LOGINMODE}           = "NPM";
+		}
+		else {
+			# Amazon normal Login Modus
+			my $username = echodevice_encrypt($user);
+			my $password = echodevice_encrypt($pass);
+			$hash->{DEF} = "$username $password";
+			$hash->{helper}{".USER"}     = $username;
+			$hash->{helper}{".PASSWORD"} = $password;
+			$hash->{LOGINMODE}           = "NORMAL";
+		}
 
-		$hash->{helper}{".USER"}     = $username;
-		$hash->{helper}{".PASSWORD"} = $password;
 		$hash->{helper}{TWOFA}      = "";
 		$hash->{helper}{SERVER}   = $attr{$name}{server};
 		$hash->{helper}{SERVER}   = "layla.amazon.de" if(!defined($hash->{helper}{SERVER}));
@@ -408,16 +428,15 @@ sub echodevice_Define($$$) {
 		$hash->{STATE} = "INITIALIZED";
 
 		# set default settings on first define
-		if ($init_done) {
+		if ($init_done and $attr{$name}{icon} eq "" and $attr{$name}{room} eq "") {
 			$attr{$name}{icon} = 'echo';
 			$attr{$name}{room} = 'Amazon';
 		}
-		
 		InternalTimer(gettimeofday() + 5  , "echodevice_FirstStart" , $hash, 0);
 		InternalTimer(gettimeofday() + 10 , "echodevice_GetSettings", $hash, 0);
 	}
 	else {
-  
+		# Amazon ECHO Device
 		$hash->{STATE} = "INITIALIZED";
 
 		$hash->{model} = echodevice_getModel($a[2]);#$a[2];
@@ -427,8 +446,9 @@ sub echodevice_Define($$$) {
 		readingsBulkUpdate($hash, "state", "INITIALIZED", 1);
 		readingsEndUpdate($hash,1);
 		
-		$hash->{helper}{DEVICETYPE} = $a[2];
-		$hash->{helper}{".SERIAL"}  = $a[3];
+		$hash->{helper}{DEVICETYPE}  = $a[2];
+		$hash->{helper}{".SERIAL"}   = $a[3];
+		$hash->{LOGINMODE}           = "IODEV";
 
 		$modules{$hash->{TYPE}}{defptr}{$a[3]} = $hash;
 
@@ -444,7 +464,9 @@ sub echodevice_Define($$$) {
 		}
 
 	}
-  
+
+	readingsSingleUpdate ($hash, "COOKIE_MODE", $hash->{LOGINMODE} ,0);
+	
 	Log3 $name, 4, "[$name] [echodevice_Define] Getting auth URL return";
 	return undef;
 }
@@ -533,6 +555,7 @@ sub echodevice_Get($@) {
 		$return .= "<tr><td>"."MPD Streamserver"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-streamserver' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-streamserver</td></tr>";
 		$return .= "<tr><td>"."MPD Web Frontend"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-webfrontend' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/mpd-webfrontend</td></tr>";
 		$return .= "<tr><td>"."IceCast2"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/smarthome/sonstiges/icecast2' .'"'. "</a>https://mwinkler.jimdo.com/smarthome/sonstiges/icecast2</td></tr>";
+		$return .= "<tr><td>"."NPM Login"."&nbsp;&nbsp;&nbsp;</td><td><a target=" . "_blank" . " href=" .'"' . 'https://mwinkler.jimdo.com/modul-echodevice-npm' .'"'. "</a>https://mwinkler.jimdo.com/modul-echodevice-npm</td></tr>";
 		$return .= "<tr><td>&nbsp</td><td> </td></tr>";
 		
 		$return .= "<tr><td><strong>Forum</strong></td><td></td></tr>";
@@ -596,6 +619,7 @@ sub echodevice_Get($@) {
 		$return .= "<tr><td>Version&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "version", "unbekannt") . "</td></tr>";
 		$return .= "<tr><td>COOKIE_STATE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_STATE", "unbekannt") . "</td></tr>";
 		$return .= "<tr><td>COOKIE_TYPE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "COOKIE_TYPE", "unbekannt") . "</td></tr>";
+		$return .= "<tr><td>COOKIE_MODE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . $hash->{LOGINMODE} . "</td></tr>";
 		$return .= "<tr><td>amazon_refreshtoken&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>" . ReadingsVal( $name, "amazon_refreshtoken", "unbekannt") . "</td></tr>";
 		#$return .= "<tr><td>.COOKIE&nbsp;&nbsp;&nbsp;</td><td>Reading</td><td>123</td></tr>";
 		
@@ -696,9 +720,11 @@ sub echodevice_Set($@) {
 	return $usage if ($hash->{model} eq 'unbekannt');
 	
 	if($hash->{model} eq "ACCOUNT") {
-		$usage .= 'login:noArg loginwithcaptcha autocreate_devices:noArg item_shopping_add item_task_add login2FACode ';
+		$usage .= 'autocreate_devices:noArg item_shopping_add item_task_add ';
 		$usage .= 'AWS_Access_Key AWS_Secret_Key TTS_IPAddress TTS_Filename TTS_TuneIn POM_TuneIn POM_IPAddress POM_Filename AWS_OutputFormat:mp3,ogg_vorbis,pcm textmessage ';# if(defined($hash->{helper}{".COMMSID"}));
-		$usage .= 'config_address_from config_address_to config_address_between NPM_install:noArg NPM_login:new,refresh ';
+		$usage .= 'config_address_from config_address_to config_address_between ';
+		$usage .= 'login:noArg loginwithcaptcha login2FACode ' if($hash->{LOGINMODE} eq "NORMAL");
+		$usage .= 'NPM_install:noArg NPM_login:new,refresh '   if($hash->{LOGINMODE} eq "NPM");
 		
 		# Einkaufsliste
 		my $ShoppingListe = ReadingsVal($name, "list_SHOPPING_ITEM", "");
@@ -1759,7 +1785,7 @@ sub echodevice_SendCommand($$$) {
         $SendUrl    = "https://alexa-comms-mobile-service.amazon.com/users/".$hash->{helper}{".COMMSID"}."/conversations?latest=true&includeHomegroup=true&unread=false&modifiedSinceDate=1970-01-01T00:00:00.000Z&includeUserName=true";
 	}
 	
-	elsif ($type eq "devices" || $type eq "autocreate_devices" ) {
+	elsif ($type eq "devices" || $type eq "autocreate_devices" || $type eq "devicesstate") {
         $SendUrl   .= "/api/devices-v2/device?cached=true&_=".int(time);
 	}
 	
@@ -1886,9 +1912,13 @@ sub echodevice_SendCommand($$$) {
 		# Sonderzeichen entfernen
 		$SendData =~s/"/ /g;
 		
-		if(AttrVal($name,"speak_volume",0) > 0){
+		my $SpeakVolume;
+		$SpeakVolume = int(AttrVal($hash->{IODev}{NAME},"speak_volume",0));
+		$SpeakVolume = int(AttrVal($name,"speak_volume",0)) if($SpeakVolume == 0);
+		
+		if($SpeakVolume > 0){
 		#if(ReadingsVal($name , "volume", 50) < ReadingsVal($name , "volume_alarm", 50)) {
-			$SendData = '{"behaviorId":"PREVIEW","sequenceJson":"{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.SerialNode\",\"nodesToExecute\":[{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.AttrVal($name , "speak_volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.Speak\",\"operationPayload\":{\"locale\":\"de-DE\",\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\",\"textToSpeak\":\"'.$SendData.'\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.ReadingsVal($name , "volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}}]}}","status":"ENABLED"}'
+			$SendData = '{"behaviorId":"PREVIEW","sequenceJson":"{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.SerialNode\",\"nodesToExecute\":[{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.$SpeakVolume.'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.Speak\",\"operationPayload\":{\"locale\":\"de-DE\",\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\",\"textToSpeak\":\"'.$SendData.'\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.ReadingsVal($name , "volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}}]}}","status":"ENABLED"}'
 		}
 		else {
 			$SendData = echodevice_getsequenceJson($hash,$type,$SendData);
@@ -1909,8 +1939,7 @@ sub echodevice_SendCommand($$$) {
 		$SendData =~s/"/'/g;
 	
 		if(AttrVal($name,"speak_volume",0) > 0){
-			$SendData = '{"behaviorId":"PREVIEW","sequenceJson":"{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.SerialNode\",\"nodesToExecute\":[{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.AttrVal($name , "speak_volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"AlexaAnnouncement\",\"operationPayload\":{\"expireAfter\":\"PT5S\",\"content\":[{\"locale\":\"\",\"display\":{\"title\":\"FHEM\",\"body\":\"Speak\"},\"speak\":{\"type\":\"ssml\",\"value\":\"' . $SendData . '\"}}],\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"target\":{\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"devices\":[{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"deviceTypeId\":\"' . $hash->{helper}{DEVICETYPE} . '\"}]}}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.ReadingsVal($name , "volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}}]}}","status":"ENABLED"}'
-			
+			$SendData = '{"behaviorId":"PREVIEW","sequenceJson":"{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.SerialNode\",\"nodesToExecute\":[{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.$SpeakVolume.'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"AlexaAnnouncement\",\"operationPayload\":{\"expireAfter\":\"PT5S\",\"content\":[{\"locale\":\"\",\"display\":{\"title\":\"FHEM\",\"body\":\"Speak\"},\"speak\":{\"type\":\"ssml\",\"value\":\"' . $SendData . '\"}}],\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"target\":{\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"devices\":[{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"deviceTypeId\":\"' . $hash->{helper}{DEVICETYPE} . '\"}]}}},{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"Alexa.DeviceControls.Volume\",\"operationPayload\":{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"locale\":\"de-DE\",\"value\":\"'.ReadingsVal($name , "volume", 50).'\",\"deviceType\":\"' . $hash->{helper}{DEVICETYPE} . '\"}}]}}","status":"ENABLED"}'
 		}
 		else {
 			$SendData = '{"behaviorId": "PREVIEW","sequenceJson": "{\"@type\":\"com.amazon.alexa.behaviors.model.Sequence\",\"startNode\":{\"@type\":\"com.amazon.alexa.behaviors.model.OpaquePayloadOperationNode\",\"type\":\"AlexaAnnouncement\",\"operationPayload\":{\"expireAfter\":\"PT5S\",\"content\":[{\"locale\":\"\",\"display\":{\"title\":\"FHEM\",\"body\":\"Speak\"},\"speak\":{\"type\":\"ssml\",\"value\":\"' . $SendData . '\"}}],\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"target\":{\"customerId\":\"' . $hash->{IODev}->{helper}{".CUSTOMER"} .'\",\"devices\":[{\"deviceSerialNumber\":\"' . $hash->{helper}{".SERIAL"} . '\",\"deviceTypeId\":\"' . $hash->{helper}{DEVICETYPE} . '\"}]}}}}","status": "ENABLED"}';
@@ -2095,8 +2124,8 @@ sub echodevice_SendLoginCommand($$$) {
 		my $postdata     = $hash->{helper}{".login_postdata"};
 		my $sessionid    = $hash->{helper}{".login_sessionid"};
 
-		Log3 $name, 3, "cookielogin4: ".$hash->{helper}{".login_cookiestring"} ;
-		Log3 $name, 3, "cookielogin4: ".$hash->{helper}{".login_postdata"} ;
+		Log3 $name, 4, "cookielogin4: ".$hash->{helper}{".login_cookiestring"} ;
+		Log3 $name, 4, "cookielogin4: ".$hash->{helper}{".login_postdata"} ;
 		
 		$param->{url}    = "https://www.amazon.de/ap/signin";
 		$param->{method} = "POST";
@@ -2269,7 +2298,7 @@ sub echodevice_Parse($$$) {
 			if (@SessionID[0] eq "session-id") {
 				$sessionid = @SessionID[1];
 				$sessionid =~ s/;//g;
-				Log3 $name, 3, "Cookie 2 : COO    = ".$sessionid ;		
+				Log3 $name, 4, "Cookie 2 : COO    = ".$sessionid ;		
 				$sessionid  = $cookie;
 			}
 		} 
@@ -3378,7 +3407,7 @@ sub echodevice_Parse($$$) {
 				readingsBeginUpdate($devicehash);
 				readingsBulkUpdate($devicehash, "model", $devicehash->{model}, 1);
 				readingsBulkUpdate($devicehash, "presence", ($device->{online}?"present":"absent"), 1);
-				readingsBulkUpdate($devicehash, "state", "absent", 1) if(!$device->{online});
+				#readingsBulkUpdate($devicehash, "state", "absent", 1) if(!$device->{online});
 				readingsBulkUpdate($devicehash, "version", $device->{softwareVersion}, 1);
 				readingsEndUpdate($devicehash,1);
 				$devicehash->{helper}{".SERIAL"} = $device->{serialNumber};
@@ -3403,6 +3432,37 @@ sub echodevice_Parse($$$) {
 		
 		$return =~ s/'/&#x0027/g;
 		asyncOutput( $param->{CL}, $return );
+	}
+	
+	elsif($msgtype eq "devicesstate") {
+		if(!defined($json->{devices})) {}
+		elsif (ref($json->{devices}) ne "ARRAY") {}
+		else {
+			foreach my $device (@{$json->{devices}}) {
+				my $devicehash = $modules{$hash->{TYPE}}{defptr}{"$device->{serialNumber}"};
+				next if( !defined($devicehash) );
+	
+				$devicehash->{model} = echodevice_getModel($device->{deviceType});#$device->{deviceType};
+
+				readingsBeginUpdate($devicehash);
+				readingsBulkUpdate($devicehash, "model", $devicehash->{model}, 1);
+				readingsBulkUpdate($devicehash, "presence", ($device->{online}?"present":"absent"), 1);
+				#readingsBulkUpdate($devicehash, "state", "absent", 1) if(!$device->{online});
+				readingsBulkUpdate($devicehash, "version", $device->{softwareVersion}, 1);
+				readingsEndUpdate($devicehash,1);
+				$devicehash->{helper}{".SERIAL"} = $device->{serialNumber};
+				$devicehash->{helper}{DEVICETYPE} = $device->{deviceType};
+				$devicehash->{helper}{NAME} = $device->{accountName};
+				$devicehash->{helper}{FAMILY} = $device->{deviceFamily};
+				$devicehash->{helper}{VERSION} = $device->{softwareVersion};
+				$devicehash->{helper}{".CUSTOMER"} = $device->{deviceOwnerCustomerId};
+
+				if ($device->{deviceFamily} eq "ECHO" || $device->{deviceFamily} eq "KNIGHT") {
+					$hash->{helper}{".SERIAL"} = $device->{serialNumber};
+					$hash->{helper}{DEVICETYPE} = $device->{deviceType};
+				}
+			}
+		}
 	}
 	
 	elsif($msgtype eq "searchtunein") {
@@ -3670,10 +3730,11 @@ sub echodevice_GetSettings($) {
 			echodevice_SendCommand($hash,"listitems_shopping","SHOPPING_ITEM");
 			echodevice_SendCommand($hash,"getdevicesettings","");
 			echodevice_SendCommand($hash,"getisonline","");
+
+			echodevice_SendCommand($hash,"devices","")     if ($hash->{helper}{VERSION} eq "");
+			echodevice_SendCommand($hash,"devicesstate","");
 			
-			echodevice_SendCommand($hash,"devices","") if ($hash->{helper}{VERSION} eq "");
 			echodevice_SendCommand($hash,"account","") if ($hash->{helper}{".COMMSID"} eq "");
-			
 			echodevice_SendLoginCommand($hash,"cookielogin6","");
 			
 			# Voice Reading
@@ -3760,6 +3821,12 @@ sub echodevice_FirstStart($) {
 	readingsSingleUpdate ($hash, "version", $ModulVersion ,0);
 	readingsSingleUpdate ($hash, "autocreate_devices", "stop", 0 );
 	
+	# Migration NPM von Version älter 0.0.55
+	if ((ReadingsVal($name, "COOKIE_TYPE", "unbekannt") eq "READING_NPM" || ReadingsVal($name, "COOKIE_TYPE", "unbekannt") eq "NPM_Login" ) && ReadingsVal($name, "amazon_refreshtoken", "unbekannt") eq "vorhanden" && $hash->{DEF} ne "xxx\@xxx.xx xxx") {
+		$hash->{DEF}       = "xxx\@xxx.xx xxx";
+		$hash->{LOGINMODE} = "NPM";
+	}
+	
 	if(AttrVal( $name, "cookie", "none" ) ne "none") {
 		readingsSingleUpdate ($hash, "COOKIE_TYPE", "ATTRIBUTE" ,0);
 		$hash->{helper}{".COOKIE"} = AttrVal( $name, "cookie", "none" );
@@ -3793,8 +3860,8 @@ sub echodevice_FirstStart($) {
 		readingsSingleUpdate ($hash, "COOKIE_TYPE", "NEW" ,0);
 	}
 
-	Log3 $name, 4, "[$name] COOKIE      = " . $hash->{helper}{".COOKIE"};
-	Log3 $name, 4, "[$name] COOKIE_TYPE = " . ReadingsVal( $name, "COOKIE_TYPE", "none" );
+	Log3 $name, 4, "[$name] [echodevice_FirstStart] COOKIE      = " . $hash->{helper}{".COOKIE"};
+	Log3 $name, 4, "[$name] [echodevice_FirstStart] COOKIE_TYPE = " . ReadingsVal( $name, "COOKIE_TYPE", "none" );
 	
     $hash->{STATE} = "INITIALIZED";
     echodevice_CheckAuth($hash);
@@ -3845,18 +3912,20 @@ sub echodevice_LoginStart($) {
 			} 
 			else {
 				if (index(ReadingsVal($name , ".COOKIE", "0"), "{") != -1) { 
-					# try reconnect
-					echodevice_SendLoginCommand($hash,"cookielogin6","");
+					echodevice_SendLoginCommand($hash,"cookielogin6","");# if($hash->{LOGINMODE} eq "NORMAL");
 				}
 				else {
-					Log3 $name, 4, "[$name] [echodevice_LoginStart] start login";
-					$hash->{helper}{RUNLOGIN} = 0;
-					echodevice_SendLoginCommand($hash,"cookielogin1","") if(!defined($attr{$name}{cookie}));				
+					if($hash->{LOGINMODE} eq "NORMAL") {
+						Log3 $name, 4, "[$name] [echodevice_LoginStart] start login";
+						$hash->{helper}{RUNLOGIN} = 0;
+						echodevice_SendLoginCommand($hash,"cookielogin1","") if(!defined($attr{$name}{cookie}));
+					}
 				}
 			}
 		}
 		elsif ($hash->{STATE} eq "connected but loginerror") {
-			echodevice_SendLoginCommand($hash,"cookielogin6","");
+			Log3 $name, 3, "[$name] [echodevice_LoginStart] connected but loginerror";
+			echodevice_SendLoginCommand($hash,"cookielogin6","");# if($hash->{LOGINMODE} eq "NORMAL");
 		}
 		else {
 			if (index(ReadingsVal($name , ".COOKIE", "0"), "{") != -1) { 
@@ -3883,7 +3952,7 @@ sub echodevice_CheckAuth($) {
   
 	# Erneut Login ausführen wenn Cookie nicht gesetzt wurde!
 	if(!defined($hash->{helper}{".COOKIE"})) {
-		echodevice_SendLoginCommand($hash,"cookielogin1","");
+		echodevice_SendLoginCommand($hash,"cookielogin1","") if($hash->{LOGINMODE} eq "NORMAL");
 	}
 	else {
 		echodevice_SendLoginCommand($hash,"cookielogin6","");
@@ -3993,9 +4062,11 @@ sub echodevice_getModel($){
 	elsif($ModelNumber eq "A3S5BH2HU6VAYF" || $ModelNumber eq "Echo Dot")        		{return "Echo Dot";}
 	elsif($ModelNumber eq "A32DOYMUN6DTXA" || $ModelNumber eq "Echo Dot")        		{return "Echo Dot Gen3";}
 	elsif($ModelNumber eq "A32DDESGESSHZA" || $ModelNumber eq "Echo Dot")				{return "Echo Dot Gen3";}
+	elsif($ModelNumber eq "A1RABVCI4QCIKC" || $ModelNumber eq "Echo Dot")				{return "Echo Dot Gen3";}
 	elsif($ModelNumber eq "A10A33FOX2NUBK" || $ModelNumber eq "Echo Spot")				{return "Echo Spot";}
 	elsif($ModelNumber eq "A1NL4BVLQ4L3N3" || $ModelNumber eq "Echo Show")				{return "Echo Show";}
 	elsif($ModelNumber eq "AWZZ5CVHX2CD"   || $ModelNumber eq "Echo Show")				{return "Echo Show Gen2";}
+	elsif($ModelNumber eq "A4ZP7ZC4PI6TO"  || $ModelNumber eq "Echo Show 5")            {return "Echo Show 5";}
 	elsif($ModelNumber eq "A2M35JJZWCQOMZ" || $ModelNumber eq "Echo Plus")				{return "Echo Plus";}
 	elsif($ModelNumber eq "A1JJ0KFC4ZPNJ3" || $ModelNumber eq "Echo Input")				{return "Echo Input";}
 	elsif($ModelNumber eq "A18O6U1UQFJ0XK" || $ModelNumber eq "Echo Plus 2")			{return "Echo Plus 2";}
@@ -4019,6 +4090,8 @@ sub echodevice_getModel($){
 	elsif($ModelNumber eq "A10L5JEZTKKCZ8" || $ModelNumber eq "VOBOT")           		{return "VOBOT";}
 	elsif($ModelNumber eq "A37SHHQ3NUL7B5" || $ModelNumber eq "Bose Home Speaker 500")	{return "Bose Home Speaker 500";}
 	elsif($ModelNumber eq "AVN2TMX8MU2YM"  || $ModelNumber eq "Bose Home Speaker 500")	{return "Bose Home Speaker 500";}
+	elsif($ModelNumber eq "A1RTAM01W29CUP" || $ModelNumber eq "Alexa App for PC")       {return "Alexa App for PC";}
+	elsif($ModelNumber eq "A21Z3CGI8UIP0F" || $ModelNumber eq "HEOS")                   {return "HEOS";}
 	elsif($ModelNumber eq "")               {return "";}
 	elsif($ModelNumber eq "ACCOUNT")        {return "ACCOUNT";}
 	else {return "unbekannt";}
@@ -4055,9 +4128,30 @@ sub echodevice_Attr($$$) {
 
 sub echodevice_anonymize($$) {
 	my ($hash, $string) = @_;
-
-	# no need to anonymize the data, function does break under some conditions
 	return $string;
+
+=pod
+
+	my $s1 = $hash->{helper}{".SERIAL"};
+	my $s2 = $hash->{helper}{".CUSTOMER"};
+	my $s3 = $hash->{helper}{HOMEGROUP};
+	my $s4 = $hash->{helper}{".COMMSID"};
+	my $s5;
+	$s5 = echodevice_decrypt($hash->{helper}{".USER"}) if(defined($hash->{helper}{".USER"}));
+	$s5 = echodevice_decrypt($hash->{IODev}->{helper}{".USER"}) if(defined($hash->{IODev}->{helper}{".USER"}));;
+	$s1 = "SERIAL" if(!defined($s1));
+	$s2 = "CUSTOMER" if(!defined($s2));
+	$s3 = "HOMEGROUP" if(!defined($s3));
+	$s4 = "COMMSID" if(!defined($s4));
+	$s5 = "USER" if(!defined($s5));
+	$string =~ s/$s1/SERIAL/g;
+	$string =~ s/$s2/CUSTOMER/g;
+	$string =~ s/$s3/HOMEGROUP/g;
+	$string =~ s/$s4/COMMSID/g;
+	$string =~ s%$s5%USER%g;
+	return $string;
+
+=cut
 }
 
 sub echodevice_encrypt($) {
