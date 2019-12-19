@@ -354,7 +354,7 @@ use Time::Piece;
 use lib ('./FHEM/lib', './lib');
 use MP3::Info;
 
-my $ModulVersion     = "0.0.59";
+my $ModulVersion     = "0.0.59.1";
 my $AWSPythonVersion = "0.0.3";
 my $NPMLoginTyp		 = "unbekannt";
 
@@ -4128,6 +4128,8 @@ sub echodevice_getModel($){
 	elsif($ModelNumber eq "AVN2TMX8MU2YM"  || $ModelNumber eq "Bose Home Speaker 500")	{return "Bose Home Speaker 500";}
 	elsif($ModelNumber eq "A1RTAM01W29CUP" || $ModelNumber eq "Alexa App for PC")       {return "Alexa App for PC";}
 	elsif($ModelNumber eq "A21Z3CGI8UIP0F" || $ModelNumber eq "HEOS")                   {return "HEOS";}
+	elsif($ModelNumber eq "AKOAGQTKAS9YB"  || $ModelNumber eq "Echo Connect")			{return "Echo Connect";}
+	elsif($ModelNumber eq "A3NTO4JLV9QWRB" || $ModelNumber eq "Gigaset L800HX")			{return "Gigaset L800HX";}
 	elsif($ModelNumber eq "")               {return "";}
 	elsif($ModelNumber eq "ACCOUNT")        {return "ACCOUNT";}
 	else {return "unbekannt";}
